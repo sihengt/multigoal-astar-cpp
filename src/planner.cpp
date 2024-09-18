@@ -26,30 +26,6 @@
 // Questions
 // 1. How do we construct the graph?
 
-// Define the custom State class
-struct State {
-    int x, y;                  // Coordinates or unique identifiers
-    double g_cost, h_cost;     // A* costs
-    double f_cost;             // Total cost (g_cost + h_cost)
-    using FibonacciHeapType = boost::heap::fibonacci_heap<State*, boost::heap::compare<StateComparator>>;
-    using HandleType = FibonacciHeapType::handle_type; // Correct handle type
-    HandleType heap_handle; // Heap handle
-
-    // Constructor
-    State(int x, int y, double g, double h)
-        : x(x), y(y), g_cost(g), h_cost(h) {
-        f_cost = g_cost + h_cost;
-    }
-};
-
-struct StateComparator {
-    bool operator()(const State* lhs, const State* rhs) const {
-        // Use f_cost for comparison; lesser f_cost has higher priority (min-heap behavior)
-        return lhs->f_cost > rhs->f_cost; // '>' because Boost's heap is a max-heap by default
-    }
-};
-
-
 void planner(
     int* map,
     int collision_thresh,
@@ -69,34 +45,31 @@ void planner(
     int dX[NUMOFDIRS] = {-1, -1, -1,  0,  0,  1, 1, 1};
     int dY[NUMOFDIRS] = {-1,  0,  1, -1,  1, -1, 0, 1};
     
-    // Fibonacci heap 
-    boost::heap::fibonacci_heap<State*, boost::heap::compare<StateComparator>> fib_heap;
+    // Initialization of OPEN (implemented as fibonacci heap priority queue)
+    LookupPriorityQueue Q;
+    GoalTrajectoryManager goal_manager(target_steps, x_size, y_size);
+    goal_manager.populate_l_goals(target_traj);
 
-    State* start = new State(0, 0, 0, 10);
-    State* middle = new State(1, 1, 5, 5);
-    State* end = new State(2, 2, 10, 0);
-
-    start->heap_handle = fib_heap.push(start);
-    middle->heap_handle = fib_heap.push(middle);
-    end->heap_handle = fib_heap.push(end);
-
-    // Extract the minimum (lowest f_cost)
-    State* min_state = fib_heap.top();
-    fib_heap.pop();
+    GraphManager graph_manager(x_size, y_size, map, collision_thresh, NUMOFDIRS);
+    graph_manager.init_actions(dX, dY, NUMOFDIRS);
     
-    std::cout << "Extracted state at: (" << min_state->x << ", " << min_state->y << ")" 
-              << " with f_cost: " << min_state->f_cost << std::endl;
-
+    Coord2d robot_pose_2d(robotposeX, robotposeY);
+    Coord3d robot_pose(robotposeX, robotposeY, curr_time);
+    
+    std::vector<int> successors;
+    successors = graph_manager.get_successors(robot_pose_2d);
     // for now greedily move towards the final target position,
     // but this is where you can put your planner
 
-    int goalposeX = target_traj[target_steps-1];
-    int goalposeY = target_traj[target_steps-1+target_steps];
+    int goalposeX = target_traj[target_steps - 1];
+    int goalposeY = target_traj[target_steps - 1 + target_steps];
     // printf("robot: %d %d;\n", robotposeX, robotposeY);
     // printf("goal: %d %d;\n", goalposeX, goalposeY);
 
     int bestX = 0, bestY = 0; // robot will not move if greedy action leads to collision
-    double olddisttotarget = (double)sqrt(((robotposeX-goalposeX)*(robotposeX-goalposeX) + (robotposeY-goalposeY)*(robotposeY-goalposeY)));
+    double olddisttotarget = (double)sqrt(
+        ((robotposeX - goalposeX) * (robotposeX - goalposeX) + (robotposeY - goalposeY) * (robotposeY - goalposeY))
+    );
     double disttotarget;
     for(int dir = 0; dir < NUMOFDIRS; dir++)
     {

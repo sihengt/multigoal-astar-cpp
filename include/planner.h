@@ -1,6 +1,9 @@
 #ifndef PLANNER_H
 #define PLANNER_H
-#include <boost/heap/fibonacci_heap.hpp>
+
+#include "LookupPriorityQueue.h"
+#include "GoalTrajectoryManager.h"
+#include "GraphManager.h"
 
 struct State;
 struct StateComparator;
