@@ -1,5 +1,8 @@
 #include "LookupPriorityQueue.h"
 
+using HeapType = boost::heap::fibonacci_heap<State>;
+using HandleType = HeapType::handle_type;
+
 // Helper overload for printing.
 std::ostream& operator << (std::ostream& os, const State& state)
 {
@@ -34,4 +37,21 @@ void LookupPriorityQueue::pop()
     const State& s = pq.top();
     lookup_table.erase(s.index);
     pq.pop();
+}
+
+bool LookupPriorityQueue::index_in_lookup_table(int index)
+{
+    if (lookup_table.find(index) != lookup_table.end())
+        return true;
+    return false;
+}
+
+bool LookupPriorityQueue::empty()
+{
+    return pq.empty();
+}
+
+HandleType LookupPriorityQueue::get_state_handle(int index)
+{
+    return lookup_table[index];
 }

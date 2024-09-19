@@ -47,17 +47,67 @@ void planner(
     
     // Initialization of OPEN (implemented as fibonacci heap priority queue)
     LookupPriorityQueue Q;
-    GoalTrajectoryManager goal_manager(target_steps, x_size, y_size);
-    goal_manager.populate_l_goals(target_traj);
-
-    GraphManager graph_manager(x_size, y_size, map, collision_thresh, NUMOFDIRS);
-    graph_manager.init_actions(dX, dY, NUMOFDIRS);
     
+    GraphManager graph_manager(x_size, y_size, target_steps, map, collision_thresh, NUMOFDIRS);
+    graph_manager.init_actions(dX, dY, NUMOFDIRS);
+    graph_manager.populate_l_goals(target_traj);
+
     Coord2d robot_pose_2d(robotposeX, robotposeY);
     Coord3d robot_pose(robotposeX, robotposeY, curr_time);
-    
+
     std::vector<int> successors;
-    successors = graph_manager.get_successors(robot_pose_2d);
+    successors = graph_manager.get_successors(robot_pose);
+    
+    // Insert start state
+    Q.insert(graph_manager.coord_to_index_3d(robot_pose), 0, graph_manager.compute_heuristic(robot_pose));
+
+    // Planning loop
+    while (true) // s_{goal} is not expanded, OPEN != 0.
+    {
+        if (Q.empty())
+            break;
+        const State& current_state = Q.top();
+        Coord3d debug_coords = graph_manager.index_to_coord_3d(current_state.index);
+        std::cout << "Currently at (" << debug_coords.x << "," << debug_coords.y << "," << debug_coords.t << ")" << std::endl;
+        graph_manager.add_to_closed(current_state.index);
+        
+        // TODO: so clunky, I want to re-think the data structures here.
+        Coord3d coord = graph_manager.index_to_coord_3d(current_state.index);
+        successors = graph_manager.get_successors(coord);
+        
+        for (int successor_index_3d : successors)
+        {
+            double succ_cost_to_go, succ_heuristic;
+            // Dummy goal state
+            if (successor_index_3d == -1)
+            {
+                succ_cost_to_go = current_state.cost_to_go;
+                succ_heuristic = 0;
+            }
+            
+            // Every other normal state
+            else
+            {
+                Coord3d successor_coords = graph_manager.index_to_coord_3d(successor_index_3d);
+                succ_cost_to_go = current_state.cost_to_go + graph_manager.get_c(successor_coords);
+                succ_heuristic = graph_manager.compute_heuristic(successor_coords);
+            }
+            
+            // Successor is not in OPEN, so we insert it into the queue.
+            if (!Q.index_in_lookup_table(successor_index_3d))
+                Q.insert(successor_index_3d, succ_cost_to_go, succ_heuristic);
+            
+            // Successor is in OPEN, we need to check if it's current cost to go is > previous state's cost to go + cost
+            else
+            {
+                auto succ_state_ptr = Q.get_state_handle(successor_index_3d);
+                // We found a lower cost to the successor
+                if ((*succ_state_ptr).cost_to_go > succ_cost_to_go)
+                    Q.update(successor_index_3d, succ_cost_to_go);
+            }
+        }
+    }
+    
     // for now greedily move towards the final target position,
     // but this is where you can put your planner
 

@@ -10,7 +10,6 @@ include_directories(include)
 
 # Add library of classes that I might potentially re-use
 add_library(astar_lib
-        src/GoalTrajectoryManager.cpp
         src/GraphManager.cpp
         src/LookupPriorityQueue.cpp
 )

@@ -1,5 +1,5 @@
-#ifndef LOOKUP_PRIORITY_QUEUE_HPP
-#define LOOKUP_PRIORITY_QUEUE_HPP
+#ifndef LOOKUP_PRIORITY_QUEUE_H
+#define LOOKUP_PRIORITY_QUEUE_H
 #include "boost/heap/fibonacci_heap.hpp"
 #include <unordered_map>
 #include <iostream>
@@ -39,12 +39,17 @@ class LookupPriorityQueue
         LookupPriorityQueue();
         void insert(int index, double cost_to_go, double heuristic);
         void update(int index, double cost_to_go);
+        bool empty();
         const State& top();
         void pop();
+
+        // look for key in lookup_table
+        bool index_in_lookup_table(int index);
+        HandleType get_state_handle(int index);
         
     private:
         HeapType pq; // actual priority queue. value corresponds to g()
         std::unordered_map<int, HandleType> lookup_table; // will be dynamically updated when nodes are in PQ.
 };
 
-#endif // LOOKUP_PRIORITY_QUEUE_HPP
+#endif // LOOKUP_PRIORITY_QUEUE_H

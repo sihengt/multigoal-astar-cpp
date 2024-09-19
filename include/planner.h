@@ -2,7 +2,6 @@
 #define PLANNER_H
 
 #include "LookupPriorityQueue.h"
-#include "GoalTrajectoryManager.h"
 #include "GraphManager.h"
 
 struct State;
