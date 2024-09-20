@@ -6,25 +6,7 @@
 typedef typename boost::heap::fibonacci_heap<float> state_t;
 typedef typename state_t::handle_type handle_t;
 
-struct State
-{
-    int index; // For debugging
-    double cost_to_go; // g, can be changed
-    double heuristic; // h, won't be changed.
-    double getCost() const
-    {
-        return cost_to_go + heuristic;
-    }
-    bool operator<(State const & rhs) const
-    {
-        return getCost() > rhs.getCost();
-    }
-    State(const int index, const double cost_to_go, const double heuristic) :
-        index(index),
-        cost_to_go(cost_to_go),
-        heuristic(heuristic)
-    {}
-};
+ad
 
 class LookupPriorityQueue
 /**
@@ -40,8 +22,9 @@ class LookupPriorityQueue
         void insert(int index, double cost_to_go, double heuristic);
         void update(int index, double cost_to_go);
         bool empty();
-        const State& top();
+        const State top();
         void pop();
+        void reset(){pq.clear(); lookup_table.clear();}
 
         // look for key in lookup_table
         bool index_in_lookup_table(int index);

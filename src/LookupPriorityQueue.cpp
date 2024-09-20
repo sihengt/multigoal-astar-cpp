@@ -26,7 +26,7 @@ void LookupPriorityQueue::update(int index, double cost_to_go)
     lookup_table.insert({index, pq.push(s_new)});
 }
 
-const State& LookupPriorityQueue::top()
+const State LookupPriorityQueue::top()
 {
     return pq.top(); // TODO: I don't think I need to create a new State everytime right?
 }
