@@ -1,29 +1,29 @@
-#include "GraphManager.h"
+#include "GraphManagerVector.h"
 
 // Note: 1-indexed.
-int GraphManager::coord_to_index(Coord3d &coord)
+int GraphManagerVector::coord_to_index(Coord3d &coord)
 {
     return (max_x * max_y * coord.t) + (coord.x - 1) + (max_x * (coord.y - 1));
 }
-int GraphManager::coord_to_index(Coord2d &coord)
+int GraphManagerVector::coord_to_index(Coord2d &coord)
 {
     return (coord.x - 1) + (max_x * (coord.y - 1));
 }
-void GraphManager::index_to_coord(int index, Coord3d &coord)
+void GraphManagerVector::index_to_coord(int index, Coord3d &coord)
 {
     coord.t = index / (max_x * max_y);
     index %= (max_x * max_y);
     coord.y = index / max_x + 1;
     coord.x = index % max_x + 1;
 }
-void GraphManager::index_to_coord(int index, Coord2d &coord)
+void GraphManagerVector::index_to_coord(int index, Coord2d &coord)
 {
     coord.y = index / max_x + 1;
     coord.x = index % max_x + 1;
 }
 
 
-bool GraphManager::in_bounds(Coord2d &coord)
+bool GraphManagerVector::in_bounds(Coord2d &coord)
 {
     // To account for that annoying 1-index.
     if ((coord.x - 1 >= min_x) && 
@@ -36,13 +36,13 @@ bool GraphManager::in_bounds(Coord2d &coord)
     return false;
 }
 
-void GraphManager::init_actions(int* dX, int* dY, int num_dirs)
+void GraphManagerVector::init_actions(int* dX, int* dY, int num_dirs)
 {
     for (int i=0; i<num_dirs; i++)
         actions.push_back(Action(dX[i], dY[i]));
 }
 
-void GraphManager::get_successors(Coord3d& robot_pose, std::vector<int>& successors)
+void GraphManagerVector::get_successors(Coord3d& robot_pose, std::vector<int>& successors)
 {
     std::fill(successors.begin(), successors.end(), -1);
     Coord2d new_robot_pose_2d(0, 0);
@@ -68,10 +68,10 @@ void GraphManager::get_successors(Coord3d& robot_pose, std::vector<int>& success
         map_index_2d = coord_to_index(new_robot_pose_2d);
         map_index_3d = coord_to_index(new_robot_pose);
 
-        if (closed_queue.find(map_index_2d) != closed_queue.end())
-            continue;
-        // if (closed_queue[map_index_3d])
+        // if (closed_queue.find(map_index_2d) != closed_queue.end())
         //     continue;
+        if (closed_queue[map_index_3d])
+            continue;
 
         cost = map[map_index_2d];
         
@@ -81,7 +81,7 @@ void GraphManager::get_successors(Coord3d& robot_pose, std::vector<int>& success
     }
 }
 
-void GraphManager::get_successors(Coord2d& robot_pose, std::vector<int>& successors)
+void GraphManagerVector::get_successors(Coord2d& robot_pose, std::vector<int>& successors)
 {   
     std::fill(successors.begin(), successors.end(), -1);
     Coord2d new_robot_pose_2d(0, 0);
@@ -97,10 +97,10 @@ void GraphManager::get_successors(Coord2d& robot_pose, std::vector<int>& success
 
         map_index_2d = coord_to_index(new_robot_pose_2d);
 
-        if (closed_queue.find(map_index_2d) != closed_queue.end())
-            continue;
-        // if (closed_queue[map_index_2d])
+        // if (closed_queue.find(map_index_2d) != closed_queue.end())
         //     continue;
+        if (closed_queue[map_index_2d])
+            continue;
 
         cost = map[map_index_2d];
         
@@ -110,7 +110,7 @@ void GraphManager::get_successors(Coord2d& robot_pose, std::vector<int>& success
     }
 }
 
-double GraphManager::compute_heuristic(Coord3d& coord)
+double GraphManagerVector::compute_heuristic(Coord3d& coord)
 {
     double heuristic = std::numeric_limits<double>::infinity();
 
@@ -127,12 +127,7 @@ double GraphManager::compute_heuristic(Coord3d& coord)
     return heuristic;
 }
 
-int cheybyshev_dist(Coord2d& p1, Coord2d& p2)
-{
-    return std::max(p2.x - p1.x, p2.y - p1.x);
-}
-
-double GraphManager::compute_heuristic(Coord2d& coord)
+double GraphManagerVector::compute_heuristic(Coord2d& coord)
 {
 
     Coord2d goal_coords(0,0);
@@ -141,7 +136,7 @@ double GraphManager::compute_heuristic(Coord2d& coord)
     return heuristic;
 }
 
-void GraphManager::populate_l_goals(int* target_traj, Coord2d& robot_pose)
+void GraphManagerVector::populate_l_goals(int* target_traj, Coord2d& robot_pose)
 {
     for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
     {
@@ -158,7 +153,7 @@ void GraphManager::populate_l_goals(int* target_traj, Coord2d& robot_pose)
  * @param target_traj 
  * @param robot_pose 
  */
-void GraphManager::populate_l_goals(int* target_traj, Coord3d& robot_pose)
+void GraphManagerVector::populate_l_goals(int* target_traj, Coord3d& robot_pose)
 {
     for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
     {
@@ -171,23 +166,24 @@ void GraphManager::populate_l_goals(int* target_traj, Coord3d& robot_pose)
     }
 }
 
-int GraphManager::get_c(Coord3d& robot_pose)
+int GraphManagerVector::get_c(Coord3d& robot_pose)
 {
     Coord2d coord_2d(robot_pose.x, robot_pose.y);
     return map[coord_to_index(coord_2d)];
 }
 
-int GraphManager::get_c(Coord2d& robot_pose)
+int GraphManagerVector::get_c(Coord2d& robot_pose)
 {
     return map[coord_to_index(robot_pose)];
 }
 
 
-GraphManager::GraphManager(int max_x, int max_y, int target_steps, int* map, int collision_thresh, int num_dirs) : 
+GraphManagerVector::GraphManagerVector(int max_x, int max_y, int target_steps, int* map, int collision_thresh, int num_dirs) : 
     max_x(max_x),
     max_y(max_y),
     target_steps(target_steps),
     map(map),
     collision_thresh(collision_thresh),
-    num_dirs(num_dirs)
+    num_dirs(num_dirs),
+    closed_queue(max_x * max_y)
 {}

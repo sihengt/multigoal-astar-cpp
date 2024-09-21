@@ -35,6 +35,7 @@ class LookupPriorityQueue
         using HandleType = HeapType::handle_type;
         
         LookupPriorityQueue(int max_x, int max_y);
+        LookupPriorityQueue(int max_x, int max_y, int max_t);
         void insert(int index, double cost_to_go, double heuristic);
         void check_cost_and_update(int index, int cost_to_go);
         bool empty();

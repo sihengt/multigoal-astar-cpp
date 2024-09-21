@@ -11,7 +11,9 @@ include_directories(include)
 # Add library of classes that I might potentially re-use
 add_library(astar_lib
         src/GraphManager.cpp
+        src/GraphManagerVector.cpp
         src/LookupPriorityQueue.cpp
+        src/LookupPriorityQueueVector.cpp
 )
 
 # Feed my library my headers
