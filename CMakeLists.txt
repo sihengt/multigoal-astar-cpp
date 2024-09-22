@@ -12,6 +12,7 @@ include_directories(include)
 add_library(astar_lib
         src/GraphManager.cpp
         src/GraphManagerVector.cpp
+        src/PriorityQueue.cpp
         src/LookupPriorityQueue.cpp
         src/LookupPriorityQueueVector.cpp
 )

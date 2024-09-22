@@ -13,7 +13,6 @@
 
 #include "GraphManagerVector.h"
 #include "LookupPriorityQueueVector.h"
-#include "PriorityQueue.h"
 
 #define GETMAPINDEX(X, Y, XSIZE, YSIZE) ((Y-1)*XSIZE + (X-1))
 
@@ -34,10 +33,13 @@
 // 1. How do we construct the graph?
 
 void multi_backwards_djikstra(
-    PriorityQueue &Q,
+    LookupPriorityQueueVector &Q,
     GraphManagerVector &gm,
     int start,
     std::vector<int> &heuristic
+    // std::vector<int> &time_of_closest_goal_to_state,
+    // std::vector<int> &distance_of_closest_goal_to_state,
+    // std::vector<long long> &closest_goal_to_state
 )
 {
     std::vector<int> successors(8, -1);
@@ -56,12 +58,6 @@ void multi_backwards_djikstra(
         current_g = current_state.cost_to_go;
         heuristic[current_state_index] = current_g;
         
-        if (gm.closed_queue[current_state.index])
-        {
-            Q.pop();
-            continue;
-        }
-
         // If current_state is the start_state, we've found a solution.
         if (current_state.index == start)
             break;
@@ -84,11 +80,28 @@ void multi_backwards_djikstra(
             // For the backward Djikstra, we've established that the cost-to-go is whatever cost + current node's cost.
             successor_cost_to_goal = current_g + current_cost;
             
-            // Just insert everything and deal with it later.
-            if (heuristic[successor_index] > successor_cost_to_goal)
+            // Successor is not in OPEN, so we insert it into the queue.
+            // This is the first time the successor has been encountered, so we will update our lookup tables too.
+            if (Q.lookup_table[successor_index].node_ == nullptr)
             {
-                heuristic[successor_index] = successor_cost_to_goal;
                 Q.insert(successor_index, successor_cost_to_goal, 0);
+                // gm.populate_lookup_tables(
+                //     successor_index,
+                //     time_of_closest_goal_to_state,
+                //     distance_of_closest_goal_to_state,
+                //     closest_goal_to_state
+                // );
+            }
+                
+                
+            // Successor is in OPEN, we need to check if it's current cost to go is > previous state's cost to go + cost
+            else
+            {
+                auto succ_state_ptr = Q.lookup_table[successor_index];
+                if ((*succ_state_ptr).cost_to_go > successor_cost_to_goal)
+                {
+                    Q.check_cost_and_update(successor_index, successor_cost_to_goal);
+                }
             }
                 
         }
@@ -96,7 +109,7 @@ void multi_backwards_djikstra(
 }
 
 long long multi_goal_astar(
-    PriorityQueue &Q,
+    LookupPriorityQueue &Q,
     GraphManager &gm,
     int start,
     std::unordered_map<long long, int> &optimal_action_to_state,
@@ -124,16 +137,10 @@ long long multi_goal_astar(
         const State current_state = Q.top();
         auto stop_t = std::chrono::high_resolution_clock::now();
         auto duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-        // std::cout << "Top took " << duration_t.count() << " microseconds." << std::endl;
+        std::cout << "Top took " << duration_t.count() << " microseconds." << std::endl;
 
         current_state_index = current_state.index;
         current_g = current_state.cost_to_go;
-
-        if (gm.closed_queue.find(current_state_index) != gm.closed_queue.end())
-        {
-            Q.pop();
-            continue;
-        }
         
         gm.index_to_coord(current_state_index, debug_coord_3d);
         // std::cout << "Exploring: (" << debug_coord_3d.x << "," << debug_coord_3d.y << "," << debug_coord_3d.t << ")" << std::endl;
@@ -146,7 +153,7 @@ long long multi_goal_astar(
         Q.pop();
         stop_t = std::chrono::high_resolution_clock::now();
         duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-        // std::cout << "Pop took " << duration_t.count() << " microseconds." << std::endl;
+        std::cout << "Pop took " << duration_t.count() << " microseconds." << std::endl;
 
         // Check if current_state_index is in the list of goals. If so, 
         // 1. Add dummy goal state into Q
@@ -163,7 +170,7 @@ long long multi_goal_astar(
         }
         stop_t = std::chrono::high_resolution_clock::now();
         duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-        // std::cout << "Checking goals took " << duration_t.count() << " microseconds." << std::endl;
+        std::cout << "Checking goals took " << duration_t.count() << " microseconds." << std::endl;
 
 
         start_t = std::chrono::high_resolution_clock::now();
@@ -173,7 +180,7 @@ long long multi_goal_astar(
 
         stop_t = std::chrono::high_resolution_clock::now();
         duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-        // std::cout << "Adding to closed took " << duration_t.count() << " microseconds." << std::endl;
+        std::cout << "Adding to closed took " << duration_t.count() << " microseconds." << std::endl;
 
 
         start_t = std::chrono::high_resolution_clock::now();
@@ -189,7 +196,7 @@ long long multi_goal_astar(
 
         stop_t = std::chrono::high_resolution_clock::now();
         duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-        // std::cout << "Getting successors took " << duration_t.count() << " microseconds." << std::endl;
+        std::cout << "Getting successors took " << duration_t.count() << " microseconds." << std::endl;
 
         int successor_cost_to_go;
         // for (int successor_index : successors)
@@ -208,7 +215,8 @@ long long multi_goal_astar(
             successor_cost_to_go = current_g + gm.get_c(successor_coord_2d);
             
             // Successor is not in OPEN, so we insert it into the queue.
-            if (Q.heuristic_lookup.find(successor_index) == Q.heuristic_lookup.end())
+
+            if (Q.lookup_table.find(successor_index) == Q.lookup_table.end())
             {
                 bool successor_at_goal = false;
                 long long time_heuristic = 0;
@@ -259,7 +267,7 @@ long long multi_goal_astar(
                 }
                 stop_t = std::chrono::high_resolution_clock::now();
                 duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-                // std::cout << "Finding time heuristic took " << duration_t.count() << " microseconds." << std::endl;
+                std::cout << "Finding time heuristic took " << duration_t.count() << " microseconds." << std::endl;
 
 
                 if (successor_at_goal)
@@ -275,13 +283,13 @@ long long multi_goal_astar(
                 Q.insert(successor_index, successor_cost_to_go, full_heuristic);
                 stop_t = std::chrono::high_resolution_clock::now();
                 duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-                // std::cout << "Q insert took " << duration_t.count() << " microseconds." << std::endl;
+                std::cout << "Q insert took " << duration_t.count() << " microseconds." << std::endl;
 
                 start_t = std::chrono::high_resolution_clock::now();
                 optimal_action_to_state[successor_index] = action_index;
                 stop_t = std::chrono::high_resolution_clock::now();
                 duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-                // std::cout << "Updating optimal action took " << duration_t.count() << " microseconds." << std::endl;
+                std::cout << "Updating optimal action took " << duration_t.count() << " microseconds." << std::endl;
             }
                 
                 
@@ -289,13 +297,17 @@ long long multi_goal_astar(
             else
             {
                 start_t = std::chrono::high_resolution_clock::now();
-                
-                Q.insert(successor_index, successor_cost_to_go, Q.heuristic_lookup.at(successor_index));
-                optimal_action_to_state[successor_index] = action_index;                
+
+                auto succ_state_ptr = Q.lookup_table[successor_index];
+                if ((*succ_state_ptr).cost_to_go > successor_cost_to_go)
+                {
+                    Q.check_cost_and_update(successor_index, successor_cost_to_go);
+                    optimal_action_to_state[successor_index] = action_index;
+                }
                 
                 stop_t = std::chrono::high_resolution_clock::now();
                 duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-                // std::cout << "Updating queue took " << duration_t.count() << " microseconds." << std::endl;
+                std::cout << "Updating queue took " << duration_t.count() << " microseconds." << std::endl;
             } 
         }
     }
@@ -336,7 +348,7 @@ void planner(
 
     if (!is_cached)
     {        
-        PriorityQueue Q_dijkstra;
+        LookupPriorityQueueVector Q_dijkstra(x_size, y_size);
         GraphManagerVector gm_dijkstra(x_size, y_size, target_steps, map, collision_thresh, NUMOFDIRS);
         Coord2d robot_pose_2d(robotposeX, robotposeY);
 
@@ -362,7 +374,7 @@ void planner(
 
     // Reinitializing new start robot pose.
     Coord3d robot_pose_3d(robotposeX, robotposeY, curr_time);
-    PriorityQueue Q;
+    LookupPriorityQueue Q(x_size, y_size, target_steps);
     GraphManager gm(x_size, y_size, target_steps, map, collision_thresh, NUMOFDIRS);
 
     // These actions are the actions that brought you to this state, NOT the actions to take at the state.

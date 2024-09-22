@@ -2,25 +2,21 @@
 
 LookupPriorityQueue::LookupPriorityQueue(int max_x, int max_y) : 
     max_x(max_x),
-    max_y(max_y),
-    lookup_table(max_x * max_y)
+    max_y(max_y)
 {}
 
 LookupPriorityQueue::LookupPriorityQueue(int max_x, int max_y, int max_t) : 
     max_x(max_x),
-    max_y(max_y),
-    lookup_table(max_x * max_y * max_t)
+    max_y(max_y)
 {}
 
-
-void LookupPriorityQueue::insert(int index, double cost_to_go, double heuristic)
+void LookupPriorityQueue::insert(long index, double cost_to_go, double heuristic)
 {
     State s(index, cost_to_go, heuristic);
     lookup_table[index] = pq.push(s);
-    // .insert({index, pq.push(s)});
 }
 
-void LookupPriorityQueue::check_cost_and_update(int index, int new_cost)
+void LookupPriorityQueue::check_cost_and_update(long index, int new_cost)
 {
     auto succ_state_ptr = lookup_table[index];
     State s_new = (*succ_state_ptr); // Does this create a copy?
@@ -37,7 +33,7 @@ void LookupPriorityQueue::pop()
 {
     // Getting reference to remove from the lookup table
     const State& s = pq.top();
-    lookup_table[s.index] = HandleType();
+    lookup_table.erase(s.index);
     pq.pop();
 }
 

@@ -6,18 +6,18 @@
 
 struct State
 {
-    int index; // For debugging
+    long index;
     int cost_to_go; // g, can be changed
     double heuristic; // h, won't be changed.
     double getCost() const
     {
-        return cost_to_go + heuristic;
+        return cost_to_go + 1.5*heuristic;
     }
     bool operator<(State const & rhs) const
     {
         return getCost() > rhs.getCost();
     }
-    State(const int index, const int cost_to_go, const double heuristic) :
+    State(const long index, const int cost_to_go, const double heuristic) :
         index(index),
         cost_to_go(cost_to_go),
         heuristic(heuristic)
@@ -36,14 +36,14 @@ class LookupPriorityQueue
         
         LookupPriorityQueue(int max_x, int max_y);
         LookupPriorityQueue(int max_x, int max_y, int max_t);
-        void insert(int index, double cost_to_go, double heuristic);
-        void check_cost_and_update(int index, int cost_to_go);
+        void insert(long index, double cost_to_go, double heuristic);
+        void check_cost_and_update(long index, int cost_to_go);
         bool empty();
         const State& top();
         void pop();
 
         HeapType pq; // actual priority queue. value corresponds to g()
-        std::vector<HandleType> lookup_table;
+        std::unordered_map<int, HandleType> lookup_table;
     private:
         int max_x;
         int max_y;

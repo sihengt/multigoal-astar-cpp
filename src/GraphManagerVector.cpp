@@ -1,15 +1,16 @@
 #include "GraphManagerVector.h"
 
 // Note: 1-indexed.
-int GraphManagerVector::coord_to_index(Coord3d &coord)
+long long GraphManagerVector::coord_to_index(Coord3d &coord)
 {
-    return (max_x * max_y * coord.t) + (coord.x - 1) + (max_x * (coord.y - 1));
+    return (long long)(max_x) * (long long)max_y * (long long)coord.t + 
+        (long long)(coord.x - 1) + (long long)(max_x * (coord.y - 1));
 }
 int GraphManagerVector::coord_to_index(Coord2d &coord)
 {
     return (coord.x - 1) + (max_x * (coord.y - 1));
 }
-void GraphManagerVector::index_to_coord(int index, Coord3d &coord)
+void GraphManagerVector::index_to_coord(long long index, Coord3d &coord)
 {
     coord.t = index / (max_x * max_y);
     index %= (max_x * max_y);
@@ -140,30 +141,51 @@ void GraphManagerVector::populate_l_goals(int* target_traj, Coord2d& robot_pose)
 {
     for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
     {
-        Coord2d goal_traj(target_traj[i_timestep], target_traj[i_timestep + target_steps]);
-        if (std::max(goal_traj.x - robot_pose.x, goal_traj.y - robot_pose.y) > i_timestep)
+        Coord3d goal_traj_3d(target_traj[i_timestep], target_traj[i_timestep + target_steps], i_timestep);
+        Coord2d goal_traj_2d(goal_traj_3d.x, goal_traj_3d.y);
+        if (chebyshev_distance(robot_pose.x, goal_traj_2d.x, robot_pose.y, goal_traj_2d.y) > i_timestep)
             continue;
-        l_goals.push_back(coord_to_index(goal_traj));
+        l_goals.push_back(coord_to_index(goal_traj_2d));
+        l_goals_3d.push_back(coord_to_index(goal_traj_3d));
     }
 }
 
-/**
- * @brief Populates l_goals so the algorithm will know which goals to track.
- * 
- * @param target_traj 
- * @param robot_pose 
- */
-void GraphManagerVector::populate_l_goals(int* target_traj, Coord3d& robot_pose)
+int GraphManagerVector::chebyshev_distance(int p1_x, int p2_x, int p1_y, int p2_y)
 {
-    for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
+    return std::max(std::abs(p2_x - p1_x), std::abs(p2_y - p1_y));
+}
+
+void GraphManagerVector::populate_lookup_tables(
+    int state_2d_index,
+    std::vector<int> &time_of_closest_goal_to_state,
+    std::vector<int> &distance_of_closest_goal_to_state,
+    std::vector<long long> &closest_goal_to_state
+)
+{
+    int smallest_distance = std::numeric_limits<int>::max();
+    
+    // Irrelevant because we should be overwriting this.
+    long long smallest_index = 0;
+
+    Coord2d state_pose_2d(0, 0);
+    index_to_coord(state_2d_index, state_pose_2d);
+    Coord3d goal_pose_3d(0, 0, 0);
+    
+    for (long long goal_index_3d : l_goals_3d)
     {
-        Coord2d goal_traj(target_traj[i_timestep], target_traj[i_timestep + target_steps]);
-        
-        // Chebyshev distance filters unreachable poses on the trajectory.
-        if (std::max(goal_traj.x - robot_pose.x, goal_traj.y - robot_pose.y) > i_timestep - robot_pose.t)
-            continue;
-        l_goals.push_back(coord_to_index(goal_traj));
+        index_to_coord(goal_index_3d, goal_pose_3d);
+        int current_distance = chebyshev_distance(state_pose_2d.x, goal_pose_3d.x, state_pose_2d.y, goal_pose_3d.y);
+        if (current_distance < smallest_distance)
+        {
+            smallest_index = goal_index_3d;
+            smallest_distance = current_distance;
+        }
     }
+
+    index_to_coord(smallest_index, goal_pose_3d);
+    time_of_closest_goal_to_state[state_2d_index] = goal_pose_3d.t;
+    distance_of_closest_goal_to_state[state_2d_index] = smallest_distance;
+    closest_goal_to_state[state_2d_index] = smallest_index;
 }
 
 int GraphManagerVector::get_c(Coord3d& robot_pose)
@@ -185,5 +207,5 @@ GraphManagerVector::GraphManagerVector(int max_x, int max_y, int target_steps, i
     map(map),
     collision_thresh(collision_thresh),
     num_dirs(num_dirs),
-    closed_queue(max_x * max_y)
+    closed_queue(max_x * max_y, false)
 {}
