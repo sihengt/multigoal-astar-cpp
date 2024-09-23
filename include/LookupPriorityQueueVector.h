@@ -3,7 +3,6 @@
 #include "boost/heap/fibonacci_heap.hpp"
 #include <unordered_map>
 #include <iostream>
-#include "LookupPriorityQueue.h"
 
 class LookupPriorityQueueVector
 /**

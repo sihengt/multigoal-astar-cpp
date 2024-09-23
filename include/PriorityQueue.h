@@ -3,7 +3,26 @@
 #include <queue>
 #include <unordered_map>
 #include <iostream>
-#include <LookupPriorityQueue.h>
+
+struct State
+{
+    long long index;
+    int cost_to_go; // g, can be changed
+    double heuristic; // h, won't be changed.
+    double getCost() const
+    {
+        return cost_to_go + 1.5*heuristic;
+    }
+    bool operator<(State const & rhs) const
+    {
+        return getCost() > rhs.getCost();
+    }
+    State(const long index, const int cost_to_go, const double heuristic) :
+        index(index),
+        cost_to_go(cost_to_go),
+        heuristic(heuristic)
+    {}
+};
 
 class PriorityQueue
 /**

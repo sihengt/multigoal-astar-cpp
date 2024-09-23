@@ -72,15 +72,16 @@ class GraphManager
         std::vector<long long> l_goals;
         const int goal_index;
         std::unordered_set<long long> closed_queue;
+        const long long max_x; // max x dimensions of the map
+        const long long max_y; // max y dimensions of the map
+        const long long target_steps; // max t dimensions
     
     private:
         
         std::vector<Action> actions;
         const long long min_x = 0;
         const long long min_y = 0;
-        const long long max_x; // max x dimensions of the map
-        const long long max_y; // max y dimensions of the map
-        const long long target_steps; // max t dimensions
+
         
         const int num_dirs;   // 
         int* map;

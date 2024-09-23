@@ -1,9 +1,9 @@
 #ifndef PLANNER_H
 #define PLANNER_H
 
-#include "LookupPriorityQueue.h"
 #include "GraphManager.h"
-
+#include "GraphManagerVector.h"
+#include "PriorityQueue.h"
 struct State;
 struct StateComparator;
 

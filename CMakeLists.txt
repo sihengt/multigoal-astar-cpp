@@ -13,8 +13,8 @@ add_library(astar_lib
         src/GraphManager.cpp
         src/GraphManagerVector.cpp
         src/PriorityQueue.cpp
-        src/LookupPriorityQueue.cpp
-        src/LookupPriorityQueueVector.cpp
+        # src/LookupPriorityQueue.cpp
+        # src/LookupPriorityQueueVector.cpp
 )
 
 # Feed my library my headers

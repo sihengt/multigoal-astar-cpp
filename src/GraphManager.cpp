@@ -3,8 +3,9 @@
 // Note: 1-indexed.
 long long GraphManager::coord_to_index(Coord3d &coord)
 {
-    return (long long)(max_x) * (long long)max_y * (long long)coord.t + 
-        (long long)(coord.x - 1) + (long long)(max_x * (coord.y - 1));
+    return (static_cast<long long>(max_x) * static_cast<long long>(max_y) * static_cast<long long>(coord.t)) + \
+           (static_cast<long long>(coord.x - 1)) + \
+           (static_cast<long long>(max_x) * static_cast<long long>(coord.y - 1));
 }
 int GraphManager::coord_to_index(Coord2d &coord)
 {
@@ -74,8 +75,6 @@ void GraphManager::get_successors(Coord3d& robot_pose, std::vector<long long>& s
 
         if (closed_queue.find(map_index_3d) != closed_queue.end())
             continue;
-        // if (closed_queue[map_index_3d])
-        //     continue;
 
         cost = map[map_index_2d];
         

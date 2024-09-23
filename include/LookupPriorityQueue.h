@@ -11,7 +11,7 @@ struct State
     double heuristic; // h, won't be changed.
     double getCost() const
     {
-        return cost_to_go + 1.5*heuristic;
+        return cost_to_go + 10.0*heuristic;
     }
     bool operator<(State const & rhs) const
     {
