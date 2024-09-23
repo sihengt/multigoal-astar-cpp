@@ -100,19 +100,20 @@ long long multi_goal_astar(
     std::unordered_map<int, long long> &closest_state_lookup
 )
 {   
+    // [DEBUG] log.txt logs expanded states
     std::ofstream outFile("log.txt");
     std::vector<long long> successors(9, -1);
 
-    // Insert start state, with 0 for cost-to-go and 0 for heuristic
     Q.insert(start, 0, 0);
-
-    // TODO: Uh rename please
     Coord3d start_coord(0, 0, 0);
-    gm.index_to_coord(start, start_coord);
+    Coord2d start_coord_2d(0, 0);
+    gm.index_to_coord(start, start_coord_2d);
 
+    // current = top of priority queue (lowest cost)
     Coord3d current_coord(0, 0, 0);
-    Coord3d successor_coord(0, 0, 0);
     Coord2d current_coord_2d(0, 0);
+    // successor = potential successors that we're expanding
+    Coord3d successor_coord(0, 0, 0);
     Coord2d successor_coord_2d(0, 0);
     Coord3d debug_coord_3d(0,0,0);
 
@@ -121,60 +122,45 @@ long long multi_goal_astar(
     int current_state_index_2d, successor_index_2d, current_g, current_cost;
     while (!Q.empty())
     {
-        auto start_t = std::chrono::high_resolution_clock::now();
         const State current_state = Q.top();
-        auto stop_t = std::chrono::high_resolution_clock::now();
-        auto duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-        // std::cout << "Top took " << duration_t.count() << " microseconds." << std::endl;
-
         current_state_index = current_state.index;
         current_g = current_state.cost_to_go;
 
+        // We discard this state as the optimal version of this state has already been expanded.
         if (gm.closed_queue.find(current_state_index) != gm.closed_queue.end())
         {
             Q.pop();
             continue;
         }
-        
-        gm.index_to_coord(current_state_index, debug_coord_3d);
-        // std::cout << "Exploring: (" << debug_coord_3d.x << "," << debug_coord_3d.y << "," << debug_coord_3d.t << ")" << std::endl;
-        outFile << "(" << debug_coord_3d.x << "," << debug_coord_3d.y << "," << debug_coord_3d.t << ")" << std::endl;
 
+        // [DEBUG] Logging states that A* is currently expanding.
+        gm.index_to_coord(current_state_index, debug_coord_3d);
+        outFile << "(" << debug_coord_3d.x << "," << debug_coord_3d.y << "," << debug_coord_3d.t << ")" << std::endl;
+        
+        // Updating the optimal action to this current state.
+        optimal_action_to_state[current_state.index] = current_state.action;
+        
         // Checking if current state is the dummy goal for multi-goal A*.
         if (current_state.index == gm.goal_index)
-        {
             return actual_goal_index;
-        }
-            
-        start_t = std::chrono::high_resolution_clock::now();
-        Q.pop();
-        stop_t = std::chrono::high_resolution_clock::now();
-        duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-        // std::cout << "Pop took " << duration_t.count() << " microseconds." << std::endl;
 
-        // Check if current_state_index is in the list of goals. If so, 
-        // 1. Add dummy goal state into Q
-        // 2. save actual_goal_index = current_state_index;
-        // 3. Continue
+        Q.pop();
         
-        start_t = std::chrono::high_resolution_clock::now();
-        
-        // Your current state is already a goal, we can insert this in.
+        // If the current state matches (x, y, time) exactly, we insert the dummy state into the queue.
         if (std::find(gm.l_goals.begin(), gm.l_goals.end(), current_state.index) != gm.l_goals.end())
         {
             Q.insert(gm.goal_index, current_g, 0);
             actual_goal_index = current_state_index;
-        }    
+        }
+        
         // Expanded node is optimal and won't be visited again.
         gm.add_to_closed(current_state_index);
 
-        // Getting successors.
+        // Converting (long long) state_index to Coord3d and Coord2d
         gm.index_to_coord(current_state_index, current_coord);
-        
         current_coord_2d.x = current_coord.x;
         current_coord_2d.y = current_coord.y;
         current_state_index_2d = gm.coord_to_index(current_coord_2d);
-        
         gm.get_successors(current_coord, successors);
 
         int successor_cost_to_go;
@@ -182,101 +168,129 @@ long long multi_goal_astar(
         for (int action_index = 0; action_index < 9; action_index++)
         {   
             long long successor_index = successors[action_index];
-            // successor_index = -1 means there's no successor for that direction.
+            
+            // Successor_index = -1 means there's no successor for that action. Skip.
             if (successor_index == -1)
                 continue;
 
-            // For a forward
+            // Converting successor into Coord3d / Coord2d (for lookup tables).
             gm.index_to_coord(successor_index, successor_coord);
             successor_coord_2d.x = successor_coord.x;
             successor_coord_2d.y = successor_coord.y;
             successor_index_2d = gm.coord_to_index(successor_coord_2d);
             successor_cost_to_go = current_g + gm.get_c(successor_coord_2d);
             
-            // Successor is not in OPEN, so we insert it into the queue.
-            // Q.heuristic_lookup here refers to 
-            if (Q.heuristic_lookup.find(successor_index) == Q.heuristic_lookup.end())
+            // Q.heuristic_lookup gets updated with our time heuristic after the state has been
+            // encountered. Time heuristic only depends on 2D state (same for each state).
+
+            // In this case we have to compute the heuristic since we've never done it.
+            bool successor_at_goal = false;
+            int time_diff_succ_to_goal = 0;
+            long long full_heuristic;
+            int shortest_t = std::numeric_limits<int>::infinity();
+            int shortest_distance = std::numeric_limits<int>::infinity();
+            Coord3d goal_coord(0,0,0);
+            long long shortest_goal_index;
+            
+            // We've encountered this 2D state before - we can just access the closest 3D goal
+            // state from cache instead of iterating through everything.
+            if (closest_state_lookup.find(successor_index_2d) != closest_state_lookup.end())
             {
-                bool successor_at_goal = false;
-                long long time_heuristic = 0;
-                long long full_heuristic;
-                int shortest_t = std::numeric_limits<int>::max();
-                int shortest_distance = std::numeric_limits<int>::max();
-                Coord3d goal_coord(0,0,0);
-                long long shortest_goal_index;
-\
+                // Retrieve goal that is closest to the current state (by time index).
+                long long goal_index = closest_state_lookup[successor_index_2d];
+                gm.index_to_coord(goal_index, goal_coord);
                 
-                if (closest_state_lookup.find(successor_index_2d) != closest_state_lookup.end())
+                // If successor is at goal position (x, y, but not t)
+                if (goal_coord.x == successor_coord.x && goal_coord.y == successor_coord.y)
                 {
-                    long long goal_index = closest_state_lookup[successor_index_2d];
-                    gm.index_to_coord(goal_index, goal_coord);
-                    if (goal_coord.x == successor_coord.x && goal_coord.y == successor_coord.y)
-                    {
-                        if (goal_coord.t < successor_coord.t)
-                        {
-                            time_heuristic = std::numeric_limits<int>::max();
-                        }
-                        time_heuristic = std::abs(successor_coord.t - goal_coord.t);
-                        successor_at_goal = true;
-                    }
-                    else
-                    {
-                        shortest_t = goal_coord.t;
-                    }
+                    successor_at_goal = true;
+                    // We'll never be able to reach this state anymore
+                    if (goal_coord.t < successor_coord.t)
+                        time_diff_succ_to_goal = std::numeric_limits<int>::infinity();
+                    time_diff_succ_to_goal = std::abs(successor_coord.t - goal_coord.t);
+                    
                 }
-                else 
+                // Successor is not at goal position. We take the goal_coord to have the shortest time.
+                else
                 {
-                for (long long goal_index : gm.l_goals)
-                {
-                    gm.index_to_coord(goal_index, goal_coord);
-                    if (goal_coord.x == successor_coord.x && goal_coord.y == successor_coord.y)
-                    {
-                        if (goal_coord.t < successor_coord.t)
-                        {
-                            time_heuristic = std::numeric_limits<int>::max();
-                            continue;
-                        }
-                        time_heuristic = std::abs(current_coord.t - goal_coord.t);
-                        successor_at_goal = true;
-                        break;
-                    }
-
-                    int cheby_dist = std::max(goal_coord.x - successor_coord.x, goal_coord.y - successor_coord.y);
-                    if (cheby_dist < shortest_distance)
-                    {
-                        shortest_t = goal_coord.t;
-                        shortest_distance = cheby_dist;
-                        shortest_goal_index = goal_index;
-                    }
+                    shortest_t = goal_coord.t;
                 }
-                // [CACHE] adds to the cache.
-                closest_state_lookup[successor_index_2d] = shortest_goal_index;
-                }
-
-                if (successor_at_goal)
-                {
-                    full_heuristic = time_heuristic * gm.get_c(successor_coord_2d);
-                } else {
-                    full_heuristic = static_cast<long long>(heuristic[successor_index_2d]) + \
-                        std::abs(shortest_t - successor_coord.t);
-                }
-
-                Q.insert(successor_index, successor_cost_to_go, full_heuristic);
-
-                optimal_action_to_state[successor_index] = action_index;
             }
-                                
-            // Successor is in OPEN, we need to check if it's current cost to go is > previous state's cost to go + cost
-            else
+            
+            // We haven't encountered this 2D state before. We need to find the closest 3D goal
+            // state and add it to our cache ( slow :( )
+            else 
             {
-                start_t = std::chrono::high_resolution_clock::now();
-                Q.insert(successor_index, successor_cost_to_go, Q.heuristic_lookup.at(successor_index));
-                optimal_action_to_state[successor_index] = action_index;                
+            for (long long goal_index : gm.l_goals)
+            {
+                gm.index_to_coord(goal_index, goal_coord);
+                // Special case - successor's 2D coordinates are at the goal coordinates.
+                if (goal_coord.x == successor_coord.x && goal_coord.y == successor_coord.y)
+                {
+                    shortest_t = goal_coord.t;
+                    shortest_goal_index = goal_index;
+                    successor_at_goal = true;
+                    break;
+                }
+
+                int cheby_dist = std::max(
+                    std::abs(goal_coord.x - successor_coord.x),
+                    std::abs(goal_coord.y - successor_coord.y)
+                );
+
+                // [HEURISTIC b] we could take the goal point that is lowest in time to our 
+                // current successor.
+                int time_diff = goal_coord.t - successor_coord.t;
+                if (time_diff < shortest_distance)
+                {
+                    shortest_t = goal_coord.t;
+                    shortest_distance = cheby_dist;
+                    shortest_goal_index = goal_index;
+                }
+
+                // [HEURISTIC c] we could take the goal point that is lowest in time to our
+                // current successor, and also reachable (cheby distance < time difference)
                 
-                stop_t = std::chrono::high_resolution_clock::now();
-                duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-                // std::cout << "Updating queue took " << duration_t.count() << " microseconds." << std::endl;
-            } 
+                // [HEURISTIC a] this takes the goal point that is closest in Cheby distance to 
+                // our current successor
+                // if (cheby_dist < shortest_distance)
+                // {
+                //     shortest_t = goal_coord.t;
+                //     shortest_distance = cheby_dist;
+                //     shortest_goal_index = goal_index;
+                // }
+            }
+            // [CACHE] adds to the cache.
+            closest_state_lookup[successor_index_2d] = shortest_goal_index;
+            }
+            
+            // [Heuristic 2] we just use the shortest time index as a guiding signal. This assumes that 
+            // each time step just incurs cost 1.
+            // Issue: time heuristic overshadows the distance heuristic
+            // full_heuristic = heuristic[successor_index_2d] + std::abs(shortest_t - successor_coord.t) / gm.target_steps * heuristic[gm.coord_to_index(start_coord_2d)];
+            // full_heuristic = heuristic[successor_index_2d] + std::abs(shortest_t - successor_coord.t);
+
+            // [Heuristic 1] Two part time heuristic.
+            // I give up - as long as we reach the goal it's ok.
+            // if (successor_at_goal)
+            // {
+            //     // full_heuristic = time_diff_succ_to_goal * gm.get_c(successor_coord_2d);
+            //     full_heuristic = 0;
+            // } 
+            // else 
+            // {
+            //     full_heuristic = static_cast<long long>(heuristic[successor_index_2d]) + \
+            //         std::abs(shortest_t - successor_coord.t);
+            // }
+
+            full_heuristic = static_cast<long long>(heuristic[successor_index_2d]) + \
+                (std::abs(shortest_t - successor_coord.t) / gm.target_steps) * 400;
+
+            Q.insert(successor_index, successor_cost_to_go, full_heuristic, action_index);
+            
+            // [Heuristic 3]
+            // Just use Dijkstra (will never find a solution in time)
+            // Q.insert(successor_index, successor_cost_to_go, heuristic[successor_index_2d], action_index);                                
         }
     }
     return -1;
@@ -329,9 +343,6 @@ void planner(
             gm_dijkstra,
             gm_dijkstra.coord_to_index(robot_pose_2d),
             heuristic);
-            // time_of_closest_goal_to_state,
-            // distance_of_closest_goal_to_state,
-            // closest_goal_to_state);
         
         stop_t = std::chrono::high_resolution_clock::now();
         duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
