@@ -70,6 +70,7 @@ class GraphManager
         GraphManager(int max_x, int max_y, int target_steps, int* map, int collision_thresh, int num_dirs);
 
         std::vector<long long> l_goals;
+        std::vector<int> l_goals_2d;
         const int goal_index;
         std::unordered_set<long long> closed_queue;
         const long long max_x; // max x dimensions of the map

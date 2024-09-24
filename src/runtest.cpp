@@ -53,9 +53,8 @@ int main(int argc, char *argv[])
         return -1;
     }
     
-    // File looks like x_size,y_size. x_size goes into x_size, comma goes into letter, and y_size goes into y_size.
     myfile >> x_size >> letter >> y_size;
-    std::cout << "map size: " << x_size << letter << y_size << std::endl;
+    std:: cout << "map size: " << x_size << letter << y_size << std::endl;
 
     // read collision threshold
     int collision_thresh;
@@ -69,7 +68,7 @@ int main(int argc, char *argv[])
     myfile >> collision_thresh;
     std:: cout << "collision threshold: " << collision_thresh << std::endl;
 
-    // read robot starting position on map
+    // read robot position
     int robotposeX, robotposeY;
     myfile >> letter;
     if (letter != 'R')
@@ -78,7 +77,6 @@ int main(int argc, char *argv[])
         return -1;
     }
     
-    // robotposeX / robotposeY = your starting robotpose
     myfile >> robotposeX >> letter >> robotposeY;
     std:: cout << "robot pose: " << robotposeX << letter << robotposeY << std::endl;
 
@@ -108,7 +106,6 @@ int main(int argc, char *argv[])
     std::cout << "target_steps: " << target_steps << std::endl;
 
     // read map
-    // row major order - flattens out map.
     int* map = new int[x_size*y_size];
     for (size_t i=0; i<x_size; i++)
     {
@@ -216,8 +213,8 @@ int main(int argc, char *argv[])
     std::cout << "moves made = " << numofmoves << std::endl;
     std::cout << "path cost = " << pathcost << std::endl;
 
-    delete[] target_traj;
-    delete[] map;
+    delete target_traj;
+    delete map;
 
     return 0;
 }

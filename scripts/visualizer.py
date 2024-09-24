@@ -4,6 +4,16 @@ from matplotlib.animation import FuncAnimation
 
 import sys
 
+def parse_heuristic(filename, x_size, y_size):
+    heuristic_raw = np.loadtxt(filename, delimiter=',')
+    heuristic_filtered = heuristic_raw.copy()
+    heuristic_filtered[heuristic_filtered == 2147483647.0] = -1000
+    next_largest = heuristic_filtered.max()
+
+    heuristic_raw[heuristic_raw == 2147483647.0] = next_largest * 1.5
+    heuristic = heuristic_raw.reshape((y_size, x_size))
+    return heuristic
+
 def parse_mapfile(filename):
     with open(filename, 'r') as file:
         assert file.readline().strip() == 'N', "Expected 'N' in the first line"
@@ -49,12 +59,22 @@ if __name__ == "__main__":
         sys.exit(1)
 
     x_size, y_size, collision_threshold, robotX, robotY, target_trajectory, costmap = parse_mapfile(sys.argv[1])
-
+    heuristic = parse_heuristic("../heuristic", x_size, y_size)
     robot_trajectory = parse_robot_trajectory_file('../output/robot_trajectory.txt')
 
-    fig, ax = plt.subplots()
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15,8))
 
-    ax.imshow(costmap)
+    ax1.imshow(costmap)
+    ax1.set_title('Original Cost Map')
+    ax1.set_xlabel('X')
+    ax1.set_ylabel('Y')
+    
+    ax2.imshow(heuristic)
+    ax2.set_title('Heuristic Map')
+    ax2.set_xlabel('X')
+    ax2.set_ylabel('Y')
+    plt.show()
+    exit()
 
     line1, = ax.plot([], [], lw=2, marker='o', color='b', label='robot')
     line2, = ax.plot([], [], lw=2, marker='o', color='r', label='target')

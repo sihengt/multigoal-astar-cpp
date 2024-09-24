@@ -9,9 +9,10 @@ struct State
     long long index;
     int cost_to_go; // g, can be changed
     double heuristic; // h, won't be changed.
+    int action; // action to get there
     double getCost() const
     {
-        return cost_to_go + 1.5*heuristic;
+        return cost_to_go + 10.0 * heuristic;
     }
     bool operator<(State const & rhs) const
     {
@@ -21,6 +22,12 @@ struct State
         index(index),
         cost_to_go(cost_to_go),
         heuristic(heuristic)
+    {}
+    State(const long index, const int cost_to_go, const double heuristic, const int action) :
+        index(index),
+        cost_to_go(cost_to_go),
+        heuristic(heuristic),
+        action(action)
     {}
 };
 
@@ -38,6 +45,7 @@ class PriorityQueue
         
         PriorityQueue();
         void insert(long long index, double cost_to_go, double heuristic);
+        void insert(long long index, double cost_to_go, double heuristic, int action);
         bool empty();
         const State& top();
         void pop();

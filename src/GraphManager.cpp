@@ -24,7 +24,6 @@ void GraphManager::index_to_coord(int index, Coord2d &coord)
     coord.x = index % max_x + 1;
 }
 
-
 bool GraphManager::in_bounds(Coord2d &coord)
 {
     // To account for that annoying 1-index.
@@ -156,6 +155,7 @@ void GraphManager::populate_l_goals(int* target_traj, Coord2d& robot_pose)
         if (cheybyshev_dist(robot_pose, goal_traj) > i_timestep)
             continue;
         l_goals.push_back(coord_to_index(goal_traj_full));
+        l_goals_2d.push_back(coord_to_index(goal_traj));
     }
 }
 
@@ -167,16 +167,18 @@ void GraphManager::populate_l_goals(int* target_traj, Coord2d& robot_pose)
  */
 void GraphManager::populate_l_goals(int* target_traj, Coord3d& robot_pose)
 {
+    Coord2d robot_pose_2d(robot_pose.x, robot_pose.y);
     for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
     {
         Coord2d goal_traj(target_traj[i_timestep], target_traj[i_timestep + target_steps]);
         
         // Chebyshev distance filters unreachable poses on the trajectory.
-        if (std::max(goal_traj.x - robot_pose.x, goal_traj.y - robot_pose.y) > i_timestep - robot_pose.t)
+        if (cheybyshev_dist(goal_traj, robot_pose_2d) > i_timestep - robot_pose.t)
             continue;
         
         Coord3d goal_traj_full(goal_traj.x, goal_traj.y, i_timestep);
         l_goals.push_back(coord_to_index(goal_traj_full));
+        l_goals_2d.push_back(coord_to_index(goal_traj));
     }
 }
 
