@@ -4,12 +4,6 @@
  *
  *=================================================================*/
 #include "../include/planner.h"
-#include <math.h>
-#include <boost/heap/fibonacci_heap.hpp>
-#include <iostream>
-#include <fstream>
-#include <chrono>
-#include <limits>
 
 #define GETMAPINDEX(X, Y, XSIZE, YSIZE) ((Y-1)*XSIZE + (X-1))
 
@@ -40,32 +34,30 @@ void multi_backwards_djikstra(
     
     // Insert goal as start state, with 0 for cost-to-go and 0 for heuristic (cause we djikstra-ing)
     for (int goal : gm.l_goals)
+    {
         Q.insert(goal, 0, 0);
+        heuristic[goal] = 0;
+    }   
 
     Coord2d current_coord(0, 0);
     Coord2d successor_coord(0, 0);
     int current_state_index, current_g, current_cost;
     int n_states_explored = 0;
+
+    // Explore entire map
     while (!Q.empty())
     {
         const State current_state = Q.top();
         current_state_index = current_state.index;
         current_g = current_state.cost_to_go;
         heuristic[current_state_index] = current_g;
-        
+
         if (gm.closed_queue[current_state.index])
         {
             Q.pop();
             continue;
         }
 
-        // If current_state is the start_state, we've found a solution. We can continue expanding until all points
-        // in a radius around the current_state is covered.
-        // if (current_state.index == start)
-        // {
-        //     break;
-        // }
-            
         Q.pop();
         n_states_explored++;
 
@@ -86,8 +78,7 @@ void multi_backwards_djikstra(
             // For the backward Djikstra, we've established that the cost-to-go is whatever cost + current node's cost.
             successor_cost_to_goal = current_g + current_cost;
             
-            // Insert if heuristic is greater. The former portion of the code will only expand states that are not 
-            // in closed list.
+            // Insert if cost is smaller. The former portion of the code handles CLOSED.
             if (heuristic[successor_index] > successor_cost_to_goal)
             {
                 heuristic[successor_index] = successor_cost_to_goal;
@@ -104,30 +95,39 @@ long long multi_goal_astar(
     long long start,
     std::unordered_map<long long, int> &optimal_action_to_state,
     std::vector<int> &heuristic,
-    std::unordered_map<int, long long> &closest_state_lookup
-)
+    bool accept_suboptimal=false)
 {   
     // [DEBUG] log.txt logs expanded states
-    std::ofstream outFile("log.txt");
+    // std::ofstream outFile("log.txt");
+    
+    // Initializing data structure to maintain potential successors
     std::vector<long long> successors(9, -1);
 
+    // Inserting the robot start index into the queue with 0 cost and heuristic.
     Q.insert(start, 0, 0);
-    Coord3d start_coord(0, 0, 0);
-    Coord2d start_coord_2d(0, 0);
-    gm.index_to_coord(start, start_coord_2d);
+
+    // Initializing variables used later.
     Coord3d goal_coord(0, 0, 0);
     
-    // current = top of priority queue (lowest cost)
+    // current_coord = top of priority queue (lowest f value)
     Coord3d current_coord(0, 0, 0);
     Coord2d current_coord_2d(0, 0);
-    // successor = potential successors that we're expanding
+
+    // successor_coord = potential successors that we're expanding
     Coord3d successor_coord(0, 0, 0);
     Coord2d successor_coord_2d(0, 0);
+    
+    // Used for logging and debugging.
     Coord3d debug_coord_3d(0,0,0);
 
+    // Current state index, in 3D
     long long current_state_index;
+    
+    // TODO: actual_goal_index might not be the best way to keep track of the actual goal.
     long long actual_goal_index = -1;
-    int current_state_index_2d, successor_index_2d, current_g, current_cost;
+
+    int successor_index_2d, current_g;
+    
     while (!Q.empty())
     {
         const State current_state = Q.top();
@@ -143,56 +143,60 @@ long long multi_goal_astar(
 
         // [DEBUG] Logging states that A* is currently expanding.
         gm.index_to_coord(current_state_index, debug_coord_3d);
-        outFile << "(" << debug_coord_3d.x << "," << debug_coord_3d.y << "," << debug_coord_3d.t << ")" << std::endl;
-        
-        // Updating the optimal action to this current state.
-        optimal_action_to_state[current_state.index] = current_state.action;
-        
+        // outFile << "(" << debug_coord_3d.x << "," << debug_coord_3d.y << "," << debug_coord_3d.t << ")" << std::endl;
+                
         // Checking if current state is the dummy goal for multi-goal A*.
         if (current_state.index == gm.goal_index)
             return actual_goal_index;
 
+        // Updating the optimal action to this current state.
+        optimal_action_to_state[current_state.index] = current_state.action;
+
         Q.pop();
 
-        // If the current state matches (x, y) exactly, we insert the dummy state into the queue
-        Coord2d current_coord_2d(debug_coord_3d.x, debug_coord_3d.y);
-        auto iter = std::find(gm.l_goals_2d.begin(), gm.l_goals_2d.end(), gm.coord_to_index(current_coord_2d));
-        if (iter != gm.l_goals_2d.end())
+        // While we're still doing 3D A* search, as long as we're at the goal coordinate and we're there before, 
+        // the target, we'll terminate.
+        if (accept_suboptimal)
         {
-            size_t index = std::distance(gm.l_goals_2d.begin(), iter);
-            long long goal_index = gm.l_goals[index];
-            gm.index_to_coord(goal_index, goal_coord);
-            if (goal_coord.t > debug_coord_3d.t)
+            Coord2d current_coord_2d(debug_coord_3d.x, debug_coord_3d.y);
+            auto iter = std::find(gm.l_goals_2d.begin(), gm.l_goals_2d.end(), gm.coord_to_index(current_coord_2d));
+            if (iter != gm.l_goals_2d.end())
+            {
+                size_t index = std::distance(gm.l_goals_2d.begin(), iter);
+                long long goal_index = gm.l_goals[index];
+                gm.index_to_coord(goal_index, goal_coord);
+                if (goal_coord.t > debug_coord_3d.t)
+                {
+                    Q.insert(gm.goal_index, current_g, 0);
+                    actual_goal_index = current_state_index;
+                }
+            }
+        }
+
+        // If the current state matches (x, y, time) exactly, we insert the dummy state into the queue.
+        else
+        {
+            if (std::find(gm.l_goals.begin(), gm.l_goals.end(), current_state.index) != gm.l_goals.end())
             {
                 Q.insert(gm.goal_index, current_g, 0);
                 actual_goal_index = current_state_index;
             }
         }
 
-        // // If the current state matches (x, y, time) exactly, we insert the dummy state into the queue.
-        // if (std::find(gm.l_goals.begin(), gm.l_goals.end(), current_state.index) != gm.l_goals.end())
-        // {
-        //     Q.insert(gm.goal_index, current_g, 0);
-        //     actual_goal_index = current_state_index;
-        // }
         
         // Expanded node is optimal and won't be visited again.
         gm.add_to_closed(current_state_index);
 
         // Converting (long long) state_index to Coord3d and Coord2d
         gm.index_to_coord(current_state_index, current_coord);
-        current_coord_2d.x = current_coord.x;
-        current_coord_2d.y = current_coord.y;
-        current_state_index_2d = gm.coord_to_index(current_coord_2d);
         gm.get_successors(current_coord, successors);
 
         int successor_cost_to_go;
-        // for (int successor_index : successors)
         for (int action_index = 0; action_index < 9; action_index++)
         {   
             long long successor_index = successors[action_index];
             
-            // Successor_index = -1 means there's no successor for that action. Skip.
+            // Successor_index = -1 means there's no valid successor for that action.
             if (successor_index == -1)
                 continue;
 
@@ -203,120 +207,197 @@ long long multi_goal_astar(
             successor_index_2d = gm.coord_to_index(successor_coord_2d);
             successor_cost_to_go = current_g + gm.get_c(successor_coord_2d);
             
-            // Q.heuristic_lookup gets updated with our time heuristic after the state has been
-            // encountered. Time heuristic only depends on 2D state (same for each state).
-
-            // In this case we have to compute the heuristic since we've never done it.
-            // bool successor_at_goal = false;
-            // int time_diff_succ_to_goal = 0;
-            // long long full_heuristic;
-            // int shortest_t = std::numeric_limits<int>::infinity();
-            // int shortest_distance = std::numeric_limits<int>::infinity();
-            // Coord3d goal_coord(0,0,0);
-            // long long shortest_goal_index;
-            
-            // // We've encountered this 2D state before - we can just access the closest 3D goal
-            // // state from cache instead of iterating through everything.
-            // if (closest_state_lookup.find(successor_index_2d) != closest_state_lookup.end())
-            // {
-            //     // Retrieve goal that is closest to the current state (by time index).
-            //     long long goal_index = closest_state_lookup[successor_index_2d];
-            //     gm.index_to_coord(goal_index, goal_coord);
-                
-            //     // If successor is at goal position (x, y, but not t)
-            //     if (goal_coord.x == successor_coord.x && goal_coord.y == successor_coord.y)
-            //     {
-            //         successor_at_goal = true;
-            //         // We'll never be able to reach this state anymore
-            //         if (goal_coord.t < successor_coord.t)
-            //             time_diff_succ_to_goal = std::numeric_limits<int>::infinity();
-            //         time_diff_succ_to_goal = std::abs(successor_coord.t - goal_coord.t);
-                    
-            //     }
-            //     // Successor is not at goal position. We take the goal_coord to have the shortest time.
-            //     else
-            //     {
-            //         shortest_t = goal_coord.t;
-            //     }
-            // }
-            
-            // // We haven't encountered this 2D state before. We need to find the closest 3D goal
-            // // state and add it to our cache ( slow :( )
-            // else 
-            // {
-            // for (long long goal_index : gm.l_goals)
-            // {
-            //     gm.index_to_coord(goal_index, goal_coord);
-            //     // Special case - successor's 2D coordinates are at the goal coordinates.
-            //     if (goal_coord.x == successor_coord.x && goal_coord.y == successor_coord.y)
-            //     {
-            //         shortest_t = goal_coord.t;
-            //         shortest_goal_index = goal_index;
-            //         successor_at_goal = true;
-            //         break;
-            //     }
-
-            //     int cheby_dist = std::max(
-            //         std::abs(goal_coord.x - successor_coord.x),
-            //         std::abs(goal_coord.y - successor_coord.y)
-            //     );
-
-            //     // [HEURISTIC b] we could take the goal point that is lowest in time to our 
-            //     // current successor.
-            //     int time_diff = goal_coord.t - successor_coord.t;
-            //     if (time_diff < shortest_distance)
-            //     {
-            //         shortest_t = goal_coord.t;
-            //         shortest_distance = cheby_dist;
-            //         shortest_goal_index = goal_index;
-            //     }
-
-            //     // [HEURISTIC c] we could take the goal point that is lowest in time to our
-            //         // current successor, and also reachable (cheby distance < time difference)
-                
-            //     // [HEURISTIC a] this takes the goal point that is closest in Cheby distance to 
-            //     // our current successor
-            //     // if (cheby_dist < shortest_distance)
-            //     // {
-            //     //     shortest_t = goal_coord.t;
-            //     //     shortest_distance = cheby_dist;
-            //     //     shortest_goal_index = goal_index;
-            //     // }
-            // }
-            // // [CACHE] adds to the cache.
-            // closest_state_lookup[successor_index_2d] = shortest_goal_index;
-            // }
-            
-            // [Heuristic 2] we just use the shortest time index as a guiding signal. This assumes that 
-            // each time step just incurs cost 1.
-            // Issue: time heuristic overshadows the distance heuristic
-            // full_heuristic = heuristic[successor_index_2d] + std::abs(shortest_t - successor_coord.t) / gm.target_steps * heuristic[gm.coord_to_index(start_coord_2d)];
-            // full_heuristic = heuristic[successor_index_2d] + std::abs(shortest_t - successor_coord.t);
-
-            // [Heuristic 1] Two part time heuristic.
-            // I give up - as long as we reach the goal it's ok.
-            // if (successor_at_goal)
-            // {
-            //     // full_heuristic = time_diff_succ_to_goal * gm.get_c(successor_coord_2d);
-            //     full_heuristic = 0;
-            // } 
-            // else 
-            // {
-            //     full_heuristic = static_cast<long long>(heuristic[successor_index_2d]) + \
-            //         std::abs(shortest_t - successor_coord.t);
-            // }
-
-            // full_heuristic = static_cast<long long>(heuristic[successor_index_2d]) + 
-            //     std::abs(shortest_t - successor_coord.t);
-
-            Q.insert(successor_index, successor_cost_to_go, heuristic[successor_index_2d], action_index);
-            
-            // [Heuristic 3]
-            // Just use Dijkstra (will never find a solution in time)
-            // Q.insert(successor_index, successor_cost_to_go, heuristic[successor_index_2d], action_index);                                
+            Q.insert(successor_index, successor_cost_to_go, heuristic[successor_index_2d], action_index);            
         }
     }
     return -1;
+}
+
+int single_goal_astar(
+    PriorityQueue &Q,
+    GraphManager &gm,
+    int start,
+    int goal,
+    std::unordered_map<long long, int> &optimal_action_to_state,
+    std::vector<int> &heuristic)
+{   
+    // [DEBUG] log.txt logs expanded states
+    // std::ofstream outFile("log.txt");
+    
+    // Initializing data structure to maintain potential successors
+    std::vector<int> successors(9, -1);
+
+    // Inserting the robot start index into the queue with 0 cost and heuristic.
+    Q.insert(start, 0, 0);
+
+    Coord2d goal_coord(0, 0);
+    Coord2d current_coord(0, 0); // current_coord = top of priority queue (lowest f value)
+    Coord2d successor_coord(0, 0); // successor_coord = potential successors that we're expanding
+    int current_state_index; // Current state index, in 3D
+    
+    // TODO: actual_goal_index might not be the best way to keep track of the actual goal.
+    int actual_goal_index = -1;
+
+    int successor_index, current_g;
+    
+    while (!Q.empty())
+    {
+        const State current_state = Q.top();
+        current_state_index = current_state.index;
+        current_g = current_state.cost_to_go;
+
+        // We discard this state as the optimal version of this state has already been expanded.
+        if (gm.closed_queue.find(current_state_index) != gm.closed_queue.end())
+        {
+            Q.pop();
+            continue;
+        }
+
+        // [DEBUG] Logging states that A* is currently expanding.
+        gm.index_to_coord(current_state_index, current_coord);
+        // outFile << "(" << current_coord.x << "," << current_coord.y << ")" << std::endl;
+
+        // Updating the optimal action to this current state.
+        optimal_action_to_state[current_state.index] = current_state.action;
+
+        // Checking if current state is the dummy goal for multi-goal A*.
+        if (current_state.index == goal)
+            return goal;
+
+        Q.pop();
+        
+        // Expanded node is optimal and won't be visited again.
+        gm.add_to_closed(current_state_index);
+
+        // Converting (int) state_index to Coord3d and Coord2d
+        gm.index_to_coord(current_state_index, current_coord);
+        gm.get_successors(current_coord, successors);
+
+        int successor_cost_to_go;
+        for (int action_index = 0; action_index < 8; action_index++)
+        {   
+            int successor_index = successors[action_index];
+            
+            // Successor_index = -1 means there's no valid successor for that action.
+            if (successor_index == -1)
+                continue;
+
+            // Converting successor into Coord3d / Coord2d (for lookup tables).
+            gm.index_to_coord(successor_index, successor_coord);
+            successor_cost_to_go = current_g + gm.get_c(successor_coord);
+            
+            Q.insert(successor_index, successor_cost_to_go, heuristic[successor_index], action_index);            
+        }
+    }
+    return -1;
+}
+
+void backtrack(
+    GraphManager &gm,
+    std::vector<int> &plan,
+    std::unordered_map<long long, int> &optimal_action_to_state,
+    int* dX_full,
+    int* dY_full,
+    long long goal_state,
+    long long start_state)
+{
+    // Initialize backtracking from goal
+    long long current_state = goal_state;
+    // [Debug] for checking time
+    Coord3d goal_coords(0, 0, 0);
+
+    Coord3d current_state_coords(0, 0, 0);
+    int current_action, current_time = goal_coords.t;
+    // std::ofstream log_backtrack("backtracking.txt");
+    std::cout << "Plan size before backtracking:" << plan.size() << std::endl;
+    
+    while (current_state != start_state)
+    {
+        gm.index_to_coord(current_state, current_state_coords);
+        
+        // log_backtrack << "(" 
+        //     << current_state_coords.x << "," 
+        //     << current_state_coords.y << "," 
+        //     << current_state_coords.t << ")" << std::endl;
+        
+        current_action = optimal_action_to_state.at(current_state);
+        
+        plan.push_back(current_action);
+        
+        current_state_coords.x -= dX_full[current_action];
+        current_state_coords.y -= dY_full[current_action];
+        current_state_coords.t -= 1;
+
+        if (current_state_coords.t < 0)
+        {
+            std::cout << "FATAL ERROR IN BACKTRACKING" << std::endl;
+            break;
+        }
+
+        current_state = gm.coord_to_index(current_state_coords);
+    }
+    std::cout << "Plan size after backtracking:" << plan.size() << std::endl;
+}
+
+void backtrack_2d(
+    GraphManager &gm,
+    std::vector<int> &plan,
+    std::unordered_map<long long, int> &optimal_action_to_state,
+    int* dX_full,
+    int* dY_full,
+    int goal_state,
+    int start_state)
+{
+    // Initialize backtracking from goal
+    int current_state = goal_state;
+
+    Coord2d current_state_coords(0, 0);
+
+    int current_action;
+    // std::ofstream log_backtrack("backtracking.txt");
+    std::cout << "Plan size before backtracking:" << plan.size() << std::endl;
+    
+    while (current_state != start_state)
+    {
+        gm.index_to_coord(current_state, current_state_coords);
+        
+        // log_backtrack << "(" 
+        //     << current_state_coords.x << "," 
+        //     << current_state_coords.y << ")" << std::endl;
+        
+        current_action = optimal_action_to_state.at(current_state);
+        
+        plan.push_back(current_action);
+        
+        current_state_coords.x -= dX_full[current_action];
+        current_state_coords.y -= dY_full[current_action];
+        current_state = gm.coord_to_index(current_state_coords);
+    }
+    std::cout << "Plan size after backtracking:" << plan.size() << std::endl;
+}
+
+
+int get_next_action(std::vector<int> &plan, int curr_time, int &previous_time)
+{
+    // Stay stationary = 8
+    int current_action = 8;
+    
+    // We've reached the end of our plan, i.e. the goal state. Stay stationary.
+    if (plan.empty())
+        return current_action;
+    else
+    {
+        current_action = plan.back();
+        // If we're asked to wait but we've taken too long planning, we don't wait.
+        while (curr_time >= previous_time + 1 && current_action == 8)
+        {
+            plan.pop_back();
+            previous_time++;
+            return get_next_action(plan, curr_time, previous_time);
+        }
+        plan.pop_back();
+    }
+    return current_action;
 }
 
 void planner(
@@ -334,10 +415,20 @@ void planner(
     int* action_ptr
     )
 {
+    // Hello friendly TAs, tune here:
+    // Refer to my table for parameters used.
+    double EPSILON = 0.0;
+    bool ACCEPT_SUBOPTIMAL = false;
+    
+    // Globals
     static bool is_cached = false;
     static std::vector<int> heuristic(x_size * y_size, std::numeric_limits<int>::max());
-    static std::unordered_map<int, long long> lazy_lookup;
-
+    static bool plan_found = false;
+    static long long goal_state;
+    static std::unordered_map<long long, int> optimal_action_to_state;
+    static int prev_time;
+    static std::vector<int> plan;
+    
     // 8-connected grid
     int dX[NUMOFDIRS] = {-1, -1, -1,  0,  0,  1, 1, 1};
     int dY[NUMOFDIRS] = {-1,  0,  1, -1,  1, -1, 0, 1};
@@ -350,17 +441,30 @@ void planner(
     auto stop_t = std::chrono::high_resolution_clock::now();
     auto duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
 
-    if (!is_cached)
-    {        
-        PriorityQueue Q_dijkstra;
-        GraphManagerVector gm_dijkstra(x_size, y_size, target_steps, map, collision_thresh, NUMOFDIRS);
-        Coord2d robot_pose_2d(robotposeX, robotposeY);
+    bool single_goal = false;
+    int single_goal_index;
 
+    Coord2d robot_pose_2d(robotposeX, robotposeY);
+    int robot_pose_2d_index;
+
+    // The graphmanagervector uses a vector for lookup
+    // AHH looks troubling but it doesn't affect anything since the heuristic is always 0.
+    // Sorry for bad coding practices.
+    PriorityQueue Q_dijkstra(EPSILON);
+    GraphManagerVector gm_dijkstra(x_size, y_size, target_steps, map, collision_thresh, NUMOFDIRS);
+
+    if (!is_cached)
+    {
+        // First call - we initialize our prev_time to curr_time so we know how much time has elapsed.
+        prev_time = curr_time;
+
+        // Initializing a lookup table for heuristic to be used with A*
         heuristic.resize(x_size * y_size);
         std::fill(heuristic.begin(), heuristic.end(), std::numeric_limits<int>::max());
         
         gm_dijkstra.init_actions(dX, dY, NUMOFDIRS);
         gm_dijkstra.populate_l_goals(target_traj, robot_pose_2d);
+        robot_pose_2d_index = gm_dijkstra.coord_to_index(robot_pose_2d);
         multi_backwards_djikstra(
             Q_dijkstra,
             gm_dijkstra,
@@ -370,6 +474,16 @@ void planner(
         stop_t = std::chrono::high_resolution_clock::now();
         duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
         std::cout << "Time taken by Djikstra: " << duration_t.count() << std::endl;
+        
+        // If single goal, we'll generate a plan using Dijkstra only.
+        if (gm_dijkstra.l_goals.size() == 1)
+        {
+            single_goal = true;
+            single_goal_index = *gm_dijkstra.l_goals.begin();
+        }
+            
+
+        // Updating this so Dijkstra won't be called again.
         is_cached = true;
     }
 
@@ -383,54 +497,66 @@ void planner(
     // }
     // outfile.close();
 
-    // Reinitializing new start robot pose.
-    Coord3d robot_pose_3d(robotposeX, robotposeY, curr_time);
-    PriorityQueue Q;
-    GraphManager gm(x_size, y_size, target_steps, map, collision_thresh, NUMOFDIRS+1);
-
-    // std::cout << "Robot_pose_3d_index = " << gm.coord_to_index(robot_pose_3d) << std::endl;
-    // std::cout << "robotposeX = " << robotposeX << " robotposeY = " << robotposeY << " curr_time " << curr_time << std::endl;
-
-    // These actions are the actions that brought you to this state, NOT the actions to take at the state.
-    // You can backtrack from the goal state all the way back to the start state to get the best action to take,
-    // kind of like MPC.
-    std::unordered_map<long long, int> optimal_action_to_state;
-    gm.init_actions(dX_full, dY_full, NUMOFDIRS + 1);
-    gm.populate_l_goals(target_traj, robot_pose_3d);
-    start_t = std::chrono::high_resolution_clock::now();
-
-    long long goal_state = multi_goal_astar(Q,
-                                            gm,
-                                            gm.coord_to_index(robot_pose_3d),
-                                            optimal_action_to_state,
-                                            heuristic,
-                                            lazy_lookup);
-    long long current_state = goal_state;
-    long long robot_index_3d = gm.coord_to_index(robot_pose_3d);
-    Coord3d debug_goal_coords(0,0,0);
-    gm.index_to_coord(current_state, debug_goal_coords);
-    std::cout << "goal=(" << debug_goal_coords.x << "," << debug_goal_coords.y << "," << debug_goal_coords.t << ")" << std::endl;
-    Coord3d current_state_coords(0, 0, 0);
-    int current_action;
-    while (current_state != robot_index_3d)
+    
+    if (!plan_found)
     {
-        gm.index_to_coord(current_state, current_state_coords);
-        current_action = optimal_action_to_state.at(current_state);
-        current_state_coords.x -= dX_full[current_action];
-        current_state_coords.y -= dY_full[current_action];
-        current_state_coords.t -= 1;
-        if (current_state_coords.t < 0)
-        {
-            std::cout << "FATAL ERROR in BACKTRACKING" << std::endl;
-            break;
-        }
-        current_state = gm.coord_to_index(current_state_coords);
-    }
-    stop_t = std::chrono::high_resolution_clock::now();
-    duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
-    std::cout << "Time taken by A*: " << duration_t.count() << std::endl;
+        PriorityQueue Q(EPSILON);
+        GraphManager gm(x_size, y_size, target_steps, map, collision_thresh, NUMOFDIRS+1);
 
+        // No need for A* if it's a single goal
+        if (single_goal)
+        {
+            start_t = std::chrono::high_resolution_clock::now();
+            gm.init_actions(dX, dY, NUMOFDIRS);
+            // Plan towards a goal state using multi_goal_astar
+            goal_state = single_goal_astar(
+                Q,
+                gm,
+                gm.coord_to_index(robot_pose_2d),
+                single_goal_index,
+                optimal_action_to_state,
+                heuristic);
+            plan_found = true;
+            stop_t = std::chrono::high_resolution_clock::now();
+            duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
+            std::cout << "Time taken by single goal A*: " << duration_t.count() << std::endl;
+
+            // Populates plan here.
+            int robot_index = gm.coord_to_index(robot_pose_2d); // pass to function as start_state
+            backtrack_2d(gm, plan, optimal_action_to_state, dX_full, dY_full, goal_state, robot_index);
+        }
+        else
+        {
+            start_t = std::chrono::high_resolution_clock::now();
+            Coord3d robot_pose_3d(robotposeX, robotposeY, curr_time);    
+            gm.init_actions(dX_full, dY_full, NUMOFDIRS + 1);
+            gm.populate_l_goals(target_traj, robot_pose_3d);
+            
+            // Plan towards a goal state using multi_goal_astar
+            goal_state = multi_goal_astar(Q,
+                                        gm,
+                                        gm.coord_to_index(robot_pose_3d),
+                                        optimal_action_to_state,
+                                        heuristic,
+                                        ACCEPT_SUBOPTIMAL);
+            plan_found = true;
+            stop_t = std::chrono::high_resolution_clock::now();
+            duration_t = std::chrono::duration_cast<std::chrono::microseconds>(stop_t - start_t);
+            std::cout << "Time taken by A*: " << duration_t.count() << std::endl;
+
+            // Populates plan here.
+            long long robot_index_3d = gm.coord_to_index(robot_pose_3d); // pass to function as start_state
+            backtrack(gm, plan, optimal_action_to_state, dX_full, dY_full, goal_state, robot_index_3d);
+        }
+
+    }
+
+    // TODO: into a function here as well.
+    int current_action = get_next_action(plan, curr_time, prev_time);
     action_ptr[0] = robotposeX + dX_full[current_action];
     action_ptr[1] = robotposeY + dY_full[current_action];
+    
+    // Updating the time so at next function call we know which timestep we were at before.
+    prev_time++;
     return;
 }

@@ -1,6 +1,13 @@
 #include "PriorityQueue.h"
 
+double State::epsilon = 0.0;
+
 PriorityQueue::PriorityQueue() {}
+
+PriorityQueue::PriorityQueue(double epsilon)
+{
+    State::epsilon = epsilon;
+}
 
 void PriorityQueue::insert(long long index, double cost_to_go, double heuristic)
 {
@@ -23,11 +30,6 @@ void PriorityQueue::pop()
 }
 
 bool PriorityQueue::empty()
-{
-    return pq.empty();
-}
-
-bool PriorityQueue::find(long long index)
 {
     return pq.empty();
 }

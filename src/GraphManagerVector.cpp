@@ -1,5 +1,5 @@
 #include "GraphManagerVector.h"
-
+#include <fstream>
 // Note: 1-indexed.
 long long GraphManagerVector::coord_to_index(Coord3d &coord)
 {
@@ -43,45 +43,6 @@ void GraphManagerVector::init_actions(int* dX, int* dY, int num_dirs)
         actions.push_back(Action(dX[i], dY[i]));
 }
 
-void GraphManagerVector::get_successors(Coord3d& robot_pose, std::vector<int>& successors)
-{
-    std::fill(successors.begin(), successors.end(), -1);
-    Coord2d new_robot_pose_2d(0, 0);
-    Coord3d new_robot_pose(0, 0, 0);
-    int map_index_2d, map_index_3d, cost;
-    for (int dir = 0; dir < num_dirs; dir++)
-    {
-        new_robot_pose_2d.x = robot_pose.x + actions[dir].action_x;
-        new_robot_pose_2d.y = robot_pose.y + actions[dir].action_y;
-        
-        // In 3D
-        new_robot_pose.x = new_robot_pose_2d.x;
-        new_robot_pose.y = new_robot_pose_2d.y;
-        new_robot_pose.t = robot_pose.t + 1;
-        
-        // Check if new pose is in goal state
-
-
-        // Check if the action would take the robot out of bounds.
-        if (!in_bounds(new_robot_pose_2d))
-            continue;
-
-        map_index_2d = coord_to_index(new_robot_pose_2d);
-        map_index_3d = coord_to_index(new_robot_pose);
-
-        // if (closed_queue.find(map_index_2d) != closed_queue.end())
-        //     continue;
-        if (closed_queue[map_index_3d])
-            continue;
-
-        cost = map[map_index_2d];
-        
-        // Checking if cell's cost exceeds collision threshold
-        if (cost >= 0 && cost < collision_thresh)
-            successors[dir] = map_index_2d;
-    }
-}
-
 void GraphManagerVector::get_successors(Coord2d& robot_pose, std::vector<int>& successors)
 {   
     std::fill(successors.begin(), successors.end(), -1);
@@ -111,81 +72,32 @@ void GraphManagerVector::get_successors(Coord2d& robot_pose, std::vector<int>& s
     }
 }
 
-double GraphManagerVector::compute_heuristic(Coord3d& coord)
-{
-    double heuristic = std::numeric_limits<double>::infinity();
-
-    for (int goal : l_goals)
-    {
-        Coord3d goal_coords(0,0,0);
-        index_to_coord(goal, goal_coords);
-        double curr_heuristic = std::sqrt(std::pow(coord.x - goal_coords.x, 2) + std::pow(coord.y - goal_coords.y, 2) + std::pow(coord.t - goal_coords.t, 2));
-        if (curr_heuristic < heuristic)
-        {
-            heuristic = curr_heuristic;
-        }
-    }
-    return heuristic;
-}
-
-double GraphManagerVector::compute_heuristic(Coord2d& coord)
-{
-
-    Coord2d goal_coords(0,0);
-    index_to_coord(l_goals[0], goal_coords);
-    double heuristic = std::sqrt(std::pow(coord.x - goal_coords.x, 2) + std::pow(coord.y - goal_coords.y, 2));
-    return heuristic;
-}
-
 void GraphManagerVector::populate_l_goals(int* target_traj, Coord2d& robot_pose)
 {
-    for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
+    // std::ofstream outFile("goals_dijk.txt");
+    // std::ofstream outFile2("goals_dijk_index.txt");
+    int buffer = target_steps/5;
+    while (l_goals.empty())
     {
-        Coord3d goal_traj_3d(target_traj[i_timestep], target_traj[i_timestep + target_steps], i_timestep);
-        Coord2d goal_traj_2d(goal_traj_3d.x, goal_traj_3d.y);
-        if (chebyshev_distance(robot_pose.x, goal_traj_2d.x, robot_pose.y, goal_traj_2d.y) > i_timestep)
-            continue;
-        l_goals.push_back(coord_to_index(goal_traj_2d));
-        l_goals_3d.push_back(coord_to_index(goal_traj_3d));
-    }
-}
-
-int GraphManagerVector::chebyshev_distance(int p1_x, int p2_x, int p1_y, int p2_y)
-{
-    return std::max(std::abs(p2_x - p1_x), std::abs(p2_y - p1_y));
-}
-
-void GraphManagerVector::populate_lookup_tables(
-    int state_2d_index,
-    std::vector<int> &time_of_closest_goal_to_state,
-    std::vector<int> &distance_of_closest_goal_to_state,
-    std::vector<long long> &closest_goal_to_state
-)
-{
-    int smallest_distance = std::numeric_limits<int>::max();
-    
-    // Irrelevant because we should be overwriting this.
-    long long smallest_index = 0;
-
-    Coord2d state_pose_2d(0, 0);
-    index_to_coord(state_2d_index, state_pose_2d);
-    Coord3d goal_pose_3d(0, 0, 0);
-    
-    for (long long goal_index_3d : l_goals_3d)
-    {
-        index_to_coord(goal_index_3d, goal_pose_3d);
-        int current_distance = chebyshev_distance(state_pose_2d.x, goal_pose_3d.x, state_pose_2d.y, goal_pose_3d.y);
-        if (current_distance < smallest_distance)
+        for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
         {
-            smallest_index = goal_index_3d;
-            smallest_distance = current_distance;
+                Coord3d goal_traj_3d(target_traj[i_timestep], target_traj[i_timestep + target_steps], i_timestep);
+                Coord2d goal_traj_2d(goal_traj_3d.x, goal_traj_3d.y);
+                if (chebyshev_distance(robot_pose, goal_traj_2d) + buffer > i_timestep)
+                    continue;
+                // outFile << "(" << goal_traj_3d.x << "," << goal_traj_3d.y << "," << goal_traj_3d.t << ")" << std::endl;
+                // outFile2 << coord_to_index(goal_traj_2d) << std::endl;
+                
+                l_goals.insert(coord_to_index(goal_traj_2d));
+                // l_goals_3d.push_back(coord_to_index(goal_traj_3d));
         }
+        buffer /= 2;
     }
+}
 
-    index_to_coord(smallest_index, goal_pose_3d);
-    time_of_closest_goal_to_state[state_2d_index] = goal_pose_3d.t;
-    distance_of_closest_goal_to_state[state_2d_index] = smallest_distance;
-    closest_goal_to_state[state_2d_index] = smallest_index;
+int GraphManagerVector::chebyshev_distance(Coord2d& p1, Coord2d& p2)
+{
+    return std::max(std::abs(p2.x - p1.x), std::abs(p2.y - p1.y));
 }
 
 int GraphManagerVector::get_c(Coord3d& robot_pose)

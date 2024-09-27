@@ -6,10 +6,12 @@ import sys
 
 def parse_heuristic(filename, x_size, y_size):
     heuristic_raw = np.loadtxt(filename, delimiter=',')
-    heuristic_filtered = heuristic_raw.copy()
-    heuristic_filtered[heuristic_filtered == 2147483647.0] = -1000
-    next_largest = heuristic_filtered.max()
 
+    # Getting next largest value and setting int_max values in heuristic raw to that * a factor.
+    heuristic_masked = heuristic_raw.copy()
+    heuristic_masked = np.ma.masked_equal(heuristic_raw, 2147483647.0)
+    next_largest = heuristic_masked.max()
+    
     heuristic_raw[heuristic_raw == 2147483647.0] = next_largest * 1.5
     heuristic = heuristic_raw.reshape((y_size, x_size))
     return heuristic
@@ -59,42 +61,43 @@ if __name__ == "__main__":
         sys.exit(1)
 
     x_size, y_size, collision_threshold, robotX, robotY, target_trajectory, costmap = parse_mapfile(sys.argv[1])
-    heuristic = parse_heuristic("../heuristic", x_size, y_size)
+    # heuristic = parse_heuristic("../heuristic", x_size, y_size)
     robot_trajectory = parse_robot_trajectory_file('../output/robot_trajectory.txt')
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15,8))
+    fig, ax1 = plt.subplots(1)
 
     ax1.imshow(costmap)
-    ax1.set_title('Original Cost Map')
+    ax1.set_title('Map 5')
     ax1.set_xlabel('X')
     ax1.set_ylabel('Y')
+    traj_x = [p['x'] for p in robot_trajectory]
+    traj_y = [p['y'] for p in robot_trajectory]
+    obj_x = [p['x'] for p in target_trajectory]
+    obj_y = [p['y'] for p in target_trajectory]
     
-    ax2.imshow(heuristic)
-    ax2.set_title('Heuristic Map')
-    ax2.set_xlabel('X')
-    ax2.set_ylabel('Y')
-    plt.show()
-    exit()
+    ax1.plot(traj_x, traj_y, 'b', marker='o', lw=2, label='Robot Trajectory')
+    ax1.plot(obj_x, obj_y, 'r', marker='o', lw=2, label='Target Trajectory', alpha=0.5)
+    ax1.legend()
 
-    line1, = ax.plot([], [], lw=2, marker='o', color='b', label='robot')
-    line2, = ax.plot([], [], lw=2, marker='o', color='r', label='target')
+    # line1, = ax1.plot([], [], lw=2, marker='o', color='b', label='robot')
+    # line2, = ax1.plot([], [], lw=2, marker='o', color='r', label='target')
 
-    def init():
-        line1.set_data([], [])
-        line2.set_data([], [])
-        return line1, line2
+    # def init():
+    #     line1.set_data([], [])
+    #     line2.set_data([], [])
+    #     return line1, line2
 
-    def update(frame):
-        line1.set_data([p['x'] for p in robot_trajectory[:frame+1]], [p['y'] for p in robot_trajectory[:frame+1]])
+    # def update(frame):
+    #     line1.set_data([p['x'] for p in robot_trajectory[:frame+1]], [p['y'] for p in robot_trajectory[:frame+1]])
 
-        t = robot_trajectory[frame+1]['t']
-        line2.set_data([p['x'] for p in target_trajectory[:t]], [p['y'] for p in target_trajectory[:t]])
+    #     t = robot_trajectory[frame+1]['t']
+    #     line2.set_data([p['x'] for p in target_trajectory[:t]], [p['y'] for p in target_trajectory[:t]])
 
-        plt.pause((robot_trajectory[frame+1]['t']-robot_trajectory[frame]['t'])/SPEEDUP)
+    #     plt.pause((robot_trajectory[frame+1]['t']-robot_trajectory[frame]['t'])/SPEEDUP)
 
-        return line1, line2
+    #     return line1, line2
 
-    ani = FuncAnimation(fig, update, frames=len(robot_trajectory)-1, init_func=init, blit=False, interval=1)
+    # ani = FuncAnimation(fig, update, frames=len(robot_trajectory)-1, init_func=init, blit=False, interval=1)
 
     plt.legend()
     plt.show()

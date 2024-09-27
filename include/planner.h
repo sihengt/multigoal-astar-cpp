@@ -4,8 +4,11 @@
 #include "GraphManager.h"
 #include "GraphManagerVector.h"
 #include "PriorityQueue.h"
-struct State;
-struct StateComparator;
+#include <math.h>
+#include <iostream>
+#include <fstream>
+#include <chrono>
+#include <limits>
 
 // Declare the plan function
 void planner(

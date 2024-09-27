@@ -4,7 +4,7 @@ project(planning_pset1)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 set(CMAKE_CXX_STANDARD 14)
 
-find_package(Boost REQUIRED)
+# find_package(Boost REQUIRED)
 
 include_directories(include)
 
@@ -18,7 +18,7 @@ add_library(astar_lib
 )
 
 # Feed my library my headers
-target_include_directories(astar_lib PRIVATE ${CMAKE_SOURCE_DIR}/include ${Boost_INCLUDE_DIRS})
+target_include_directories(astar_lib PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Add the main executable.
 add_executable(run_test
@@ -26,7 +26,7 @@ add_executable(run_test
         src/runtest.cpp
 )
 # Have the executable depend on the header files.
-target_include_directories(run_test PRIVATE ${CMAKE_SOURCE_DIR}/include ${Boost_INCLUDE_DIRS})
+target_include_directories(run_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Link the library to the executable
 target_link_libraries(run_test PRIVATE astar_lib)

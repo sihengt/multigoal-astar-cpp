@@ -7,12 +7,14 @@
 struct State
 {
     long long index;
-    int cost_to_go; // g, can be changed
-    double heuristic; // h, won't be changed.
-    int action; // action to get there
+    int cost_to_go;
+    double heuristic;
+    static double epsilon;
+    int action;
+    
     double getCost() const
     {
-        return cost_to_go + 10.0 * heuristic;
+        return cost_to_go + epsilon * heuristic;
     }
     bool operator<(State const & rhs) const
     {
@@ -38,18 +40,16 @@ class PriorityQueue
  */
 {    
     public: 
-        // using HeapType = boost::heap::fibonacci_heap<State>;
-        // using HandleType = HeapType::handle_type;
         std::priority_queue<State> pq;
         std::unordered_map<long long, int> heuristic_lookup;
         
         PriorityQueue();
+        PriorityQueue(double epsilon);
         void insert(long long index, double cost_to_go, double heuristic);
         void insert(long long index, double cost_to_go, double heuristic, int action);
         bool empty();
         const State& top();
         void pop();
-        bool find(long long index);
 };
 
 #endif // PRIORITY_QUEUE_H

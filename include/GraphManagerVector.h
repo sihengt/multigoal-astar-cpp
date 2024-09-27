@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cmath>
 #include <limits>
+#include <set>
 #include "GraphManager.h"
 
 class GraphManagerVector
@@ -17,23 +18,15 @@ class GraphManagerVector
 
         // void add_to_closed(int index) { closed_queue.insert(index); };
         void add_to_closed(int index) {closed_queue[index] = true; };
+        void reset_closed() {std::fill(closed_queue.begin(), closed_queue.end(), false);}
 
-        void get_successors(Coord3d& robot_pose, std::vector<int>& successors);
         void get_successors(Coord2d& robot_pose, std::vector<int>& successors);
         void init_actions(int* dX, int* dY, int num_dirs);
 
-        int chebyshev_distance(int p1_x, int p2_x, int p1_y, int p2_y);
+        int chebyshev_distance(Coord2d& p1, Coord2d& p2);
 
         void populate_l_goals(int* target_traj, Coord2d& robot_pose);
-        void populate_l_goals(int* target_traj, Coord3d& robot_pose);
-        void populate_lookup_tables(
-            int state_2d_index,
-            std::vector<int> &time_of_closest_goal_to_state, // TODO: might be useless
-            std::vector<int> &distance_of_closest_goal_to_state, // TODO: might be useless
-            std::vector<long long> &closest_goal_to_state);
 
-        double compute_heuristic(Coord3d &coord);
-        double compute_heuristic(Coord2d &coord);
         int get_c(Coord3d &robot_pose);
         int get_c(Coord2d &robot_pose);
 
@@ -42,7 +35,7 @@ class GraphManagerVector
         GraphManagerVector(int max_x, int max_y, int target_steps, int* map, int collision_thresh, int num_dirs);
 
         std::vector<long long> l_goals_3d;
-        std::vector<int> l_goals;
+        std::set<int> l_goals;
         std::vector<bool> closed_queue;
     private:
         std::vector<Action> actions;

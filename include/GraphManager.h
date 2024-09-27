@@ -54,11 +54,11 @@ class GraphManager
 
         void get_successors(Coord3d& robot_pose, std::vector<long long>& successors);
         void get_successors(Coord2d& robot_pose, std::vector<int>& successors);
+        
         void init_actions(int* dX, int* dY, int num_dirs);
 
-        void populate_l_goals(int* target_traj, Coord2d& robot_pose);
         void populate_l_goals(int* target_traj, Coord3d& robot_pose);
-        int cheybyshev_dist(Coord2d& p1, Coord2d& p2);
+        int chebyshev_dist(Coord2d& p1, Coord2d& p2);
 
         double compute_heuristic(Coord3d &coord);
         double compute_heuristic(Coord2d &coord);

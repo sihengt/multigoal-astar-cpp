@@ -1,4 +1,6 @@
 #include "GraphManager.h"
+#include <iostream>
+#include <fstream>
 
 // Note: 1-indexed.
 long long GraphManager::coord_to_index(Coord3d &coord)
@@ -99,10 +101,10 @@ void GraphManager::get_successors(Coord2d& robot_pose, std::vector<int>& success
 
         map_index_2d = coord_to_index(new_robot_pose_2d);
 
+        // if (closed_queue.find(map_index_2d) != closed_queue.end())
+        //     continue;
         if (closed_queue.find(map_index_2d) != closed_queue.end())
             continue;
-        // if (closed_queue[map_index_2d])
-        //     continue;
 
         cost = map[map_index_2d];
         
@@ -112,51 +114,9 @@ void GraphManager::get_successors(Coord2d& robot_pose, std::vector<int>& success
     }
 }
 
-double GraphManager::compute_heuristic(Coord3d& coord)
+int GraphManager::chebyshev_dist(Coord2d& p1, Coord2d& p2)
 {
-    double heuristic = std::numeric_limits<double>::infinity();
-
-    for (int goal : l_goals)
-    {
-        Coord3d goal_coords(0,0,0);
-        index_to_coord(goal, goal_coords);
-        double curr_heuristic = std::sqrt(std::pow(coord.x - goal_coords.x, 2) + std::pow(coord.y - goal_coords.y, 2) + std::pow(coord.t - goal_coords.t, 2));
-        if (curr_heuristic < heuristic)
-        {
-            heuristic = curr_heuristic;
-        }
-    }
-    return heuristic;
-}
-
-int GraphManager::cheybyshev_dist(Coord2d& p1, Coord2d& p2)
-{
-    return std::max(std::abs(p2.x - p1.x), std::abs(p2.y - p1.x));
-}
-
-double GraphManager::compute_heuristic(Coord2d& coord)
-{
-
-    Coord2d goal_coords(0,0);
-    index_to_coord(l_goals[0], goal_coords);
-    double heuristic = std::sqrt(std::pow(coord.x - goal_coords.x, 2) + std::pow(coord.y - goal_coords.y, 2));
-    return heuristic;
-}
-
-void GraphManager::populate_l_goals(int* target_traj, Coord2d& robot_pose)
-{
-    // Iterate through all goals
-    // Calculates Chebyshev
-    for (int i_timestep=0; i_timestep < target_steps; i_timestep++)
-    {
-        Coord2d goal_traj(target_traj[i_timestep], target_traj[i_timestep + target_steps]);
-        Coord3d goal_traj_full(goal_traj.x, goal_traj.y, i_timestep);
-        // if (std::max(goal_traj.x - robot_pose.x, goal_traj.y - robot_pose.y) > i_timestep)
-        if (cheybyshev_dist(robot_pose, goal_traj) > i_timestep)
-            continue;
-        l_goals.push_back(coord_to_index(goal_traj_full));
-        l_goals_2d.push_back(coord_to_index(goal_traj));
-    }
+    return std::max(std::abs(p2.x - p1.x), std::abs(p2.y - p1.y));
 }
 
 /**
@@ -167,18 +127,39 @@ void GraphManager::populate_l_goals(int* target_traj, Coord2d& robot_pose)
  */
 void GraphManager::populate_l_goals(int* target_traj, Coord3d& robot_pose)
 {
+    // std::ofstream outFile("goals.txt");
     Coord2d robot_pose_2d(robot_pose.x, robot_pose.y);
+    int buffer = target_steps/5;
+    // int buffer = 0;
     for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
     {
         Coord2d goal_traj(target_traj[i_timestep], target_traj[i_timestep + target_steps]);
         
         // Chebyshev distance filters unreachable poses on the trajectory.
-        if (cheybyshev_dist(goal_traj, robot_pose_2d) > i_timestep - robot_pose.t)
+        if (chebyshev_dist(goal_traj, robot_pose_2d) + buffer > i_timestep)
             continue;
         
         Coord3d goal_traj_full(goal_traj.x, goal_traj.y, i_timestep);
+        // outFile << "(" << goal_traj_full.x << "," << goal_traj_full.y << "," << goal_traj_full.t << ")" << std::endl;
         l_goals.push_back(coord_to_index(goal_traj_full));
         l_goals_2d.push_back(coord_to_index(goal_traj));
+    }
+    while (l_goals.empty())
+    {
+        buffer /= 2;
+        for (int i_timestep=0; i_timestep<target_steps; i_timestep++)
+        {
+            Coord2d goal_traj(target_traj[i_timestep], target_traj[i_timestep + target_steps]);
+            
+            // Chebyshev distance filters unreachable poses on the trajectory.
+            if (chebyshev_dist(goal_traj, robot_pose_2d) + buffer > i_timestep)
+                continue;
+            
+            Coord3d goal_traj_full(goal_traj.x, goal_traj.y, i_timestep);
+            outFile << "(" << goal_traj_full.x << "," << goal_traj_full.y << "," << goal_traj_full.t << ")" << std::endl;
+            l_goals.push_back(coord_to_index(goal_traj_full));
+            l_goals_2d.push_back(coord_to_index(goal_traj));
+        }
     }
 }
 
@@ -192,7 +173,6 @@ int GraphManager::get_c(Coord2d& robot_pose)
 {
     return map[coord_to_index(robot_pose)];
 }
-
 
 GraphManager::GraphManager(int max_x, int max_y, int target_steps, int* map, int collision_thresh, int num_dirs) : 
     max_x(max_x),
